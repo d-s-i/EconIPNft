@@ -102,7 +102,7 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /**
-     * @notice Mint a Noun with `econNFTId` to the provided `to` address.
+     * @notice Mint a property right with `econNFTId` to the provided `to` address.
      */
     function _mintTo(address to, uint256 econNFTId) internal returns (uint256) {
         // need to generate seed ?

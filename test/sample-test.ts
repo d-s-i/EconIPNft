@@ -6,8 +6,13 @@ import assert from "assert";
 
 let econNFT: Contract;
 let econAuctionHouse: Contract;
+let accounting: Contract;
 let weth: Contract;
+let usdc: Contract;
+
 let acc0: SignerWithAddress, acc1: SignerWithAddress;
+
+const EXPIRATION_DATE = 1672441200;
 
 type Auction = [
   auctionnedNounsId: BigNumber,
@@ -45,12 +50,19 @@ describe("EconNFT", function () {
 
     const EconNFT = await ethers.getContractFactory("EconNFT");
     const WETH = await ethers.getContractFactory("WETH");
+    const USDC = await ethers.getContractFactory("USDC");
   
-    econNFT = await EconNFT.deploy(0);
+    econNFT = await EconNFT.deploy(0, EXPIRATION_DATE);
     weth = await WETH.deploy();
+    usdc = await USDC.deploy("USDC", "USDC");
 
-    console.log(`EconNFT address is ${econNFT.address}`);
-    console.log(`weth address is ${weth.address}`);
+    await usdc.transfer(acc1.address, ethers.utils.parseUnits("50000.0", "6"));
+
+    console.log(`Acc0 balances are: ${await usdc.balanceOf(acc0.address)}`);
+    console.log(`Acc1 balances are: ${await usdc.balanceOf(acc1.address)}`);
+
+    console.log(`Acc0 address is: ${acc0.address}`);
+    console.log(`Acc1 address is: ${acc1.address}`);
 
     assert.ok(econNFT.address);
   });
@@ -61,7 +73,6 @@ describe("EconAuctionHouse", function(){
     const EconAuctionHouse = await ethers.getContractFactory("EconAuctionHouse");
     econAuctionHouse = await EconAuctionHouse.deploy();
     await econNFT.setMinter(econAuctionHouse.address);
-    console.log(`EconAuctionHouse address is ${econAuctionHouse.address}`);
 
     assert.ok(econAuctionHouse.address);
   });
@@ -87,13 +98,11 @@ describe("EconAuctionHouse", function(){
   });
 
   it("first auction", async function(){
-    console.log(`Account 0 is ${acc0.address}`);
-    console.log(`Account 1 is ${acc1.address}`);
     await econAuctionHouse.createBid(0, { value: ethers.utils.parseEther("0.02"), from: acc0.address });
     const currentAuction = await econAuctionHouse.auction();
 
     const auctionnedEndTime = currentAuction[3];
-    displayAuction(currentAuction);
+    // displayAuction(currentAuction);
 
     assert.equal(currentAuction[4], acc0.address);
     await endAuction(auctionnedEndTime, await econAuctionHouse.duration());
@@ -111,7 +120,7 @@ describe("EconAuctionHouse", function(){
     const auctionnedEndTime: BigNumber = currentAuction[3];
     const auctionnedBidder: Address = currentAuction[4];
 
-    displayAuction(currentAuction);
+    // displayAuction(currentAuction);
 
     assert.equal(auctionnedNounsId.toString(), "1");
 
@@ -125,13 +134,13 @@ describe("EconAuctionHouse", function(){
     const currentAuction = await econAuctionHouse.auction();
     await econAuctionHouse.createBid("2", { value: ethers.utils.parseEther("0.02"), from: acc0.address });
 
-    displayAuction(currentAuction);
+    // displayAuction(currentAuction);
 
     econAuctionHouse = econAuctionHouse.connect(acc1);
 
     await econAuctionHouse.createBid("2", { value: ethers.utils.parseEther("0.05"), from: acc1.address });
     const currentAuction2 = await econAuctionHouse.auction();
-    displayAuction(currentAuction);
+    // displayAuction(currentAuction);
     assert.ok(currentAuction[4] !== currentAuction2[4]); 
     assert.equal(acc1.address, currentAuction2[4]);
 
@@ -149,8 +158,46 @@ describe("EconAuctionHouse", function(){
     const tokenURI0 = await econNFT.tokenURI("0");
     const tokenURI1 = await econNFT.tokenURI("1");
     const tokenURI2 = await econNFT.tokenURI("10");
-    console.log(tokenURI0);
-    console.log(tokenURI1);
-    console.log(tokenURI2);
+  });
+});
+
+describe("Accounting", function() {
+  it("Deploy the accounting Contract", async function(){
+    const Accounting = await ethers.getContractFactory("Accounting");
+    accounting = await Accounting.deploy(
+      "20", 
+      ethers.utils.parseUnits("70.0", "6"), 
+      econNFT.address, 
+      usdc.address
+    );
+
+    assert.ok(accounting.address);
+  });
+  it("allow buyers to buy an NFT", async function(){
+    await usdc.approve(accounting.address, BigInt(2**255));
+    await accounting.buyBooks("20");
+
+    const booksBought = await accounting.numberOfBooksBought(acc0.address);
+
+    console.log(`Number of books bought by ${acc0.address}: ${booksBought.toString()}`);
+    assert.equal(booksBought.toString(), "20");
+  });
+  it("set owner correctly", async function(){
+    const owner = await accounting.owner();
+    assert.equal(owner, acc0.address);
+  });
+  it("transfers usdc to the owner", async function(){
+    usdc = usdc.connect(acc1);
+    accounting = accounting.connect(acc1);
+    await usdc.approve(accounting.address, BigInt(2**255));
+
+    await accounting.buyBooks("20");
+
+    const ownerBalances0 = await usdc.balanceOf(acc0.address);
+    
+    console.log(`Owner balances are: ${ethers.utils.formatUnits(ownerBalances0, "6")}`);
+    
+    assert.equal(ownerBalances0.toString(), ethers.utils.parseUnits("51400", "6").toString());
+
   });
 });

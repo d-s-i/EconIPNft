@@ -1,5 +1,8 @@
 import { task } from "hardhat/config";
 import "@nomiclabs/hardhat-waffle";
+import "hardhat-deploy";
+import "@nomiclabs/hardhat-etherscan";
+require("dotenv").config();
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -18,5 +21,22 @@ export default {
   solidity: "0.8.6",
   mocha: {
     timeout: 200000
-  }
+  },
+  networks: {
+    rinkeby: {
+      url: process.env.RINKEBY_URL,
+      accounts: {
+        mnemonic: process.env.MNEMONIC
+      },
+      saveDeployements: true
+    }
+  },
+  namedAccounts: {
+    deployer: {
+      default: 0
+    }
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY
+  },
 };

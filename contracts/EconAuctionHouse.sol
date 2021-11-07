@@ -1,26 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-/// @title The econNFT DAO auction house
-
-/*********************************
- * ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ *
- * ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ *
- * ░░░░░░█████████░░█████████░░░ *
- * ░░░░░░██░░░████░░██░░░████░░░ *
- * ░░██████░░░████████░░░████░░░ *
- * ░░██░░██░░░████░░██░░░████░░░ *
- * ░░██░░██░░░████░░██░░░████░░░ *
- * ░░░░░░█████████░░█████████░░░ *
- * ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ *
- * ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ *
- *********************************/
-
 // LICENSE
 // econNFTAuctionHouse.sol is a modified version of Zora's AuctionHouse.sol:
 // https://github.com/ourzora/auction-house/blob/54a12ec1a6cf562e49f0a4917990474b11350a2d/contracts/AuctionHouse.sol
 //
 // AuctionHouse.sol source code Copyright Zora licensed under the GPL-3.0 license.
-// With modifications by Nounders DAO.
+// With modifications by Nounders DAO and then by Economics design.
 
 pragma solidity ^0.8.6;
 
@@ -32,6 +17,8 @@ import { IEconAuctionHouse } from './interfaces/IEconAuctionHouse.sol';
 import { IEconNFT } from './interfaces/IEconNFT.sol';
 import { IWETH } from './interfaces/IWETH.sol';
 
+/// @title - The EconNFT auction house.
+/// @notice - Auction one EconNFT a day until max supply is reached.
 contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
     // The econNFT ERC721 token contract
     IEconNFT public econNFT;
@@ -51,13 +38,13 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     // The duration of a single auction
     uint256 public duration;
 
-    // The active auction
+    // The active auction contract
     IEconAuctionHouse.Auction public auction;
 
     /**
-     * @notice Initialize the auction house and base contracts,
-     * populate configuration values, and pause the contract.
-     * @dev This function can only be called once.
+        * @notice Initialize the auction house and base contracts,
+        * populate configuration values, and pause the contract.
+        * @dev This function can only be called once.
      */
     function initialize(
         IEconNFT _econNFT,
@@ -82,7 +69,7 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Settle the current auction, mint a new Noun, and put it up for auction.
+        * @notice Settle the current auction, mint a new Noun, and put it up for auction.
      */
     function settleCurrentAndCreateNewAuction() external override nonReentrant whenNotPaused {
         _settleAuction();
@@ -90,16 +77,16 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Settle the current auction.
-     * @dev This function can only be called when the contract is paused.
+        * @notice Settle the current auction.
+        * @dev This function can only be called when the contract is paused.
      */
     function settleAuction() external override whenPaused nonReentrant {
         _settleAuction();
     }
 
     /**
-     * @notice Create a bid for a Noun, with a given amount.
-     * @dev This contract only accepts payment in ETH.
+        * @notice Create a bid for a Noun, with a given amount.
+        * @dev This contract only accepts payment in ETH.
      */
     function createBid(uint256 econNFTId) external payable override nonReentrant {
         IEconAuctionHouse.Auction memory _auction = auction;
@@ -114,7 +101,7 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
 
         address payable lastBidder = _auction.bidder;
 
-        // Refund the last bidder, if applicable
+        // Refund the last bidder, if applicable.
         if (lastBidder != address(0)) {
             _safeTransferETHWithFallback(lastBidder, _auction.amount);
         }
@@ -122,7 +109,7 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
         auction.amount = msg.value;
         auction.bidder = payable(msg.sender);
 
-        // Extend the auction if the bid was received within `timeBuffer` of the auction end time
+        // Extend the auction if the bid was received within `timeBuffer` of the auction end time.
         bool extended = _auction.endTime - block.timestamp < timeBuffer;
         if (extended) {
             auction.endTime = _auction.endTime = block.timestamp + timeBuffer;
@@ -136,19 +123,19 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Pause the econNFT auction house.
-     * @dev This function can only be called by the owner when the
-     * contract is unpaused. While no new auctions can be started when paused,
-     * anyone can settle an ongoing auction.
+        * @notice Pause the econNFT auction house.
+        * @dev This function can only be called by the owner when the
+        * contract is unpaused. While no new auctions can be started when paused,
+        * anyone can settle an ongoing auction.
      */
     function pause() external override onlyOwner {
         _pause();
     }
 
     /**
-     * @notice Unpause the econNFT auction house.
-     * @dev This function can only be called by the owner when the
-     * contract is paused. If required, this function will start a new auction.
+        * @notice Unpause the econNFT auction house.
+        * @dev This function can only be called by the owner when the
+        * contract is paused. If required, this function will start a new auction.
      */
     function unpause() external override onlyOwner {
         _unpause();
@@ -159,8 +146,8 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Set the auction time buffer.
-     * @dev Only callable by the owner.
+        * @notice Set the auction time buffer.
+        * @dev Only callable by the owner.
      */
     function setTimeBuffer(uint256 _timeBuffer) external override onlyOwner {
         timeBuffer = _timeBuffer;
@@ -169,8 +156,8 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Set the auction reserve price.
-     * @dev Only callable by the owner.
+        * @notice Set the auction reserve price.
+        * @dev Only callable by the owner.
      */
     function setReservePrice(uint256 _reservePrice) external override onlyOwner {
         reservePrice = _reservePrice;
@@ -179,8 +166,8 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Set the auction minimum bid increment percentage.
-     * @dev Only callable by the owner.
+        * @notice Set the auction minimum bid increment percentage.
+        * @dev Only callable by the owner.
      */
     function setMinBidIncrementPercentage(uint8 _minBidIncrementPercentage) external override onlyOwner {
         minBidIncrementPercentage = _minBidIncrementPercentage;
@@ -189,10 +176,10 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Create an auction.
-     * @dev Store the auction details in the `auction` state variable and emit an AuctionCreated event.
-     * If the mint reverts, the minter was updated without pausing this contract first. To remedy this,
-     * catch the revert and pause this contract.
+        * @notice Create an auction.
+        * @dev Store the auction details in the `auction` state variable and emit an AuctionCreated event.
+        * If the mint reverts, the minter was updated without pausing this contract first. To remedy this,
+        * catch the revert and pause this contract.
      */
     function _createAuction() internal {
         try econNFT.mint() returns (uint256 econNFTId) {
@@ -215,8 +202,8 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Settle an auction, finalizing the bid and paying out to the owner.
-     * @dev If there are no bids, the Noun is burned.
+        * @notice Settle an auction, finalizing the bid and paying out to the owner.
+        * @dev If there are no bids, the Noun is burned.
      */
     function _settleAuction() internal {
         IEconAuctionHouse.Auction memory _auction = auction;
@@ -241,7 +228,7 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Transfer ETH. If the ETH transfer fails, wrap the ETH and try send it as WETH.
+        * @notice Transfer ETH. If the ETH transfer fails, wrap the ETH and try send it as WETH.
      */
     function _safeTransferETHWithFallback(address to, uint256 amount) internal {
         if (!_safeTransferETH(to, amount)) {
@@ -251,8 +238,8 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     }
 
     /**
-     * @notice Transfer ETH and return the success status.
-     * @dev This function only forwards 30,000 gas to the callee.
+        * @notice Transfer ETH and return the success status.
+        * @dev This function only forwards 30,000 gas to the callee.
      */
     function _safeTransferETH(address to, uint256 value) internal returns (bool) {
         (bool success, ) = to.call{ value: value, gas: 30_000 }(new bytes(0));

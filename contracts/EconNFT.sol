@@ -1,60 +1,56 @@
-//SPDX-License-Identifier: Unlicense
+//SPDX-License-Identifier: MIT
 pragma solidity ^0.8.6;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "base64-sol/base64.sol";
 
+/// @title - Economics Design Property Right NFT.
+/// @notice - Contract used to verify the ownership of the Economics Design book property rights.
 contract EconNFT is ERC721, Ownable {
 
+    // expiration timestamp of the NFT, date after the owner won't be able to buy books anymore. 
     struct Seed {
-        uint256 expirationDate;
-        uint256 numberOfBooks;
+        uint256 expirationTimestamp;
     }
 
+    // Minter of the EconNFT. 
     address public minter;
 
+    // Max number of NFT that will be available.
     uint256 public totalSupply;
 
+    // Id currently auctionned.
     uint256 private _currentEconNFTId;
 
     bool public isMinterLocked;
 
+    // Contain information about the NFT that are set when its first minted.
     mapping(uint256 => Seed) public seeds;
 
-    uint256 public currentExpirationDate;
+    // Expiration timestamp currently associated with each EconNFT.
+    uint256 public currentExpirationTimestamp;
 
-    // Mapping from token ID to owner address
-    mapping(uint256 => address) private _owners;
-
-    // Mapping owner address to token count
-    mapping(address => uint256) private _balances;
-
+    // Constant used to translate a timestamp into a date for tokenURI().
     uint constant SECONDS_PER_DAY = 24 * 60 * 60;
-    uint constant SECONDS_PER_HOUR = 60 * 60;
-    uint constant SECONDS_PER_MINUTE = 60;
+    // Constant used to translate a timestamp into a date for tokenURI() as timestamps start from 01/01/1970.
     int constant OFFSET19700101 = 2440588;
 
-    uint constant DOW_MON = 1;
-    uint constant DOW_TUE = 2;
-    uint constant DOW_WED = 3;
-    uint constant DOW_THU = 4;
-    uint constant DOW_FRI = 5;
-    uint constant DOW_SAT = 6;
-    uint constant DOW_SUN = 7;
-
-    // art variables
+    // Variables used to make the JPEG image.
     uint256 public maxNumberOfPath;
     uint256 public maxNumberOfPathCommands;
     uint256 public size;
     string[] public pathCommands;
     string[] public colors;
 
-    constructor(uint256 _totalSupply) ERC721("Econteric IP", "ECIP") Ownable() public {
+    /// @param `_expirationTimestamp` the date where the EconNFT will expire (timestamp in seconds).
+    /// @param `_totalSupply` maximum number of NFT that is going to be minted.
+    /// @dev Variables used to make the JPEG are set in order to construct an SVG later on. 
+    constructor(uint256 _totalSupply, uint256 _expirationTimestamp) ERC721("Econteric IP", "ECIP") Ownable() public {
         totalSupply = _totalSupply;
         isMinterLocked = false;
         _currentEconNFTId = 0;
-        currentExpirationDate = 1640991600;
+        currentExpirationTimestamp = _expirationTimestamp;
 
         maxNumberOfPath = 10;
         maxNumberOfPathCommands = 5;
@@ -63,71 +59,56 @@ contract EconNFT is ERC721, Ownable {
         colors = ["red", "blue", "green", "yellow", "black", "white"];
     }
 
+    /// @notice Restrict a function only when minter is not locked (i.e. isMinterLocked == false).
     modifier whenMinterNotLocked() {
         require(!isMinterLocked, "Minter is locked");
         _;
     }
 
+    /// @notice Restrict a function to be called only by the minter address.
     modifier onlyMinter() {
         require(msg.sender == minter, "Sender is not the minter");
         _;
     }
 
+    /// @notice Mint a new NFT.
+    /// @return Return the id of the minted NFT.
+    /// @dev Create a new NFT and send it to the minter.
     function mint() public onlyMinter returns (uint256) {
         return _mintTo(minter, _currentEconNFTId++);
     }
 
-        /**
-     * @notice Burn a nft.
-     */
+    /// @notice Call the ERC721 `_burn()` function which burn an NFT and sends it to the address(0).
     function burn(uint256 econNFTId) public onlyMinter {
         _burn(econNFTId);
     }
 
-    // function tokenURI(uint256 tokenId) public view override returns (string memory) {
-    //     require(_exists(tokenId), "NounsToken: URI query for nonexistent token");
-    //     return descriptor.tokenURI(tokenId, seeds[tokenId]);
-    // }
-
-    function setMinter(address _minter) external onlyOwner whenMinterNotLocked {
-        minter = _minter;
-    }
-
-    function lockMinter() external onlyOwner whenMinterNotLocked {
-        isMinterLocked = true;
-    }
-
-    function setCurrentExpirationDate(uint256 _newExpirationDate) external onlyOwner {
-        currentExpirationDate = _newExpirationDate;
-    }
-
-    /**
-     * @notice Mint a property right with `econNFTId` to the provided `to` address.
-     */
+    /// @notice Mint an property right NFT.
+    /// @param `to` the address to send to the minted NFT.
+    /// @param `econNFTId` the id of the NFT to mint.
     function _mintTo(address to, uint256 econNFTId) internal returns (uint256) {
-        // need to generate seed ?
         seeds[econNFTId] = Seed({
-            expirationDate: currentExpirationDate,
-            numberOfBooks: 20
+            expirationTimestamp: currentExpirationTimestamp
         });
         _mint(to, econNFTId);
 
         return econNFTId;
     }
 
+    /// @notice Contain all the informations needed for read this NFT informations.
+    /// @param `tokenId` the id of the token you would like to read information from.
+    /// @return `data` a 64 based encoded string containing a json object with all the informations.
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         uint256 year;
         uint256 month;
         uint256 day;
-        (year, month, day) = timestampToDate(seeds[tokenId].expirationDate); 
+        (year, month, day) = timestampToDate(seeds[tokenId].expirationTimestamp); 
         uint256 randomNumber = block.timestamp / block.number;
         string memory svg = generateSVG(randomNumber);
         string memory imageURI = svgToImageURI(svg);
         string memory json = Base64.encode(bytes(abi.encodePacked(
             '{"name": "Econteric Book", ', 
             '"description": "Economics and Math of Token Engineering and DeFi", ', 
-            '"numberOfBooks": "', 
-            uint2str(seeds[tokenId].numberOfBooks),
             '", "expirationDate": "',
             uint2str(day),
             '/',
@@ -143,6 +124,10 @@ contract EconNFT is ERC721, Ownable {
         return data;
     }
 
+    /// @notice Transform a uint type into a string type. Used to encode tokenURI().
+    /// @param `_i` the uint to encode into string.
+    /// @return `_uintAsString` the same number but in a string format.
+    /// @dev Function taken from https://github.com/provable-things/ethereum-api/blob/master/provableAPI_0.6.sol
     function uint2str(uint _i) internal pure returns (string memory _uintAsString) {
         if (_i == 0) {
             return "0";
@@ -165,10 +150,21 @@ contract EconNFT is ERC721, Ownable {
         return string(bstr);
     }
 
+    /// @notice Takes a timestamp in seconds and convert it into a human readable date.
+    /// @param `timestamp` the timestamp you want to convert.
+    /// @return `year` the year from your timestamp.
+    /// @return `month` the month from your timestamp (between 1 and 12).
+    /// @return `day` the day from your timestamp (between 1 and 31).
     function timestampToDate(uint timestamp) internal pure returns (uint year, uint month, uint day) {
         (year, month, day) = _daysToDate(timestamp / SECONDS_PER_DAY);
     }
 
+    /// @notice Calculate year/month/day from the number of days _days since 1970/01/01.
+    /// @param `_days` the number of day between the timestamp you can to convert into a date and 01/01/1970.
+    /// @return `year` the year from your timestamp.
+    /// @return `month` the month from your timestamp (between 1 and 12).
+    /// @return `day` the day from your timestamp (between 1 and 31).
+    /// @dev Function taken from https://etherscan.io/address/0x78f96b2d5f717fa9ad416957b79d825cc4cce69d#code.
     function _daysToDate(uint _days) internal pure returns (uint year, uint month, uint day) {
         int __days = int(_days);
 
@@ -188,6 +184,10 @@ contract EconNFT is ERC721, Ownable {
         day = uint(_day);
     }
 
+    /// @notice Generate a full SVG component.
+    /// @param `_randomNumber` is a random number used to construct the SVG (the more random the better).
+    /// @return `finalSvg` the full SVG component readable by a browser.
+    /// @dev The random number is used to print random lines and random colors on the final SVG.
     function generateSVG(uint256 _randomNumber) public view returns(string memory finalSvg) {
         uint256 numberOfPath = (_randomNumber % maxNumberOfPath) + 1;
         finalSvg = string(abi.encodePacked('<svg xmlns="http://www.w3.org/2000/svg" height="', uint2str(size), '" width="', uint2str(size), '">'));
@@ -199,6 +199,10 @@ contract EconNFT is ERC721, Ownable {
         finalSvg = string(abi.encodePacked(finalSvg, "</svg>"));
     }
 
+    /// @notice Generate different paths that creates the SVG lines.
+    /// @param `_randomNumber` is a random number from the `generatePath()` function.
+    /// @return `pathSvg` a string containing all SVG instructions.
+    /// @dev Function called by the `generateSVG()` function.
     function generatePath(uint256 _randomNumber) public view returns(string memory pathSvg) {
         uint256 numberOfPathCommands = (_randomNumber % maxNumberOfPathCommands) + 1;
         pathSvg = '<path d="';
@@ -211,6 +215,10 @@ contract EconNFT is ERC721, Ownable {
         pathSvg = string(abi.encodePacked(pathSvg, '" fill="transparent" stroke="', color, '"/>'));
     }
 
+    /// @notice Generate the paths to create the SVG.
+    /// @param `_randomNumber` is a random number from the `generatePath()` function.
+    /// @return `pathCommand` a string containing the paths to create the SVG.
+    /// @dev Called by the `generatePath()` function.
     function generatePathCommand(uint256 _randomNumber) public view returns(string memory pathCommand) {
         pathCommand = pathCommands[_randomNumber % pathCommands.length];
         uint256 parameterOne = uint256(keccak256(abi.encode(_randomNumber, size * 2))) % size;
@@ -218,6 +226,9 @@ contract EconNFT is ERC721, Ownable {
         pathCommand = string(abi.encodePacked(pathCommand, " ", uint2str(parameterOne), " ", uint2str(parameterTwo), " "));
     }
 
+    /// @notice Takes a SVG and encode it while still keeping it readable by a browser.
+    /// @param `_svg` is the SVG component.
+    /// @return `imageURI` a string readable by the browser which will display the SVG.
     function svgToImageURI(string memory _svg) public pure returns(string memory) {
         string memory baseURL = "data:image/svg+xml;base64,";
         string memory svgBase64Encoded = Base64.encode(bytes(string(abi.encodePacked(_svg))));
@@ -225,15 +236,20 @@ contract EconNFT is ERC721, Ownable {
         return imageURI;
     }
 
-    // need to track personal score
+    /// @notice Change the minter address.
+    /// @param `_minter` The new minter address.
+    function setMinter(address _minter) external onlyOwner whenMinterNotLocked {
+        minter = _minter;
+    }
 
-    // righ to purchase the book at a discount (has expiration)
+    /// @notice Lock the minter from calling certain functions.
+    function lockMinter() external onlyOwner whenMinterNotLocked {
+        isMinterLocked = true;
+    }
 
-    // buy via website only if you have the nft => function from another contract ?
-
-    // receiving bonus (% of all ebook sold)
-
-    // count how much someone bought per quarter
-
-    // buying price => auction
+    /// @notice Change the expiration timestamp of the future NFTs about to get minted.
+    /// @param `_newExpirationTimestamp` the new timestamp.
+    function setCurrentExpirationTimestamp(uint256 _newExpirationTimestamp) external onlyOwner {
+        currentExpirationTimestamp = _newExpirationTimestamp;
+    }
 }

@@ -5,8 +5,8 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "base64-sol/base64.sol";
 
-/// @title - Economics Design Property Right NFT.
-/// @notice - Contract used to verify the ownership of the Economics Design book property rights.
+/// @title Economics Design Property Right NFT.
+/// @notice Contract used to verify the ownership of the Economics Design book property rights.
 contract EconNFT is ERC721, Ownable {
 
     // expiration timestamp of the NFT, date after the owner won't be able to buy books anymore. 
@@ -43,8 +43,8 @@ contract EconNFT is ERC721, Ownable {
     string[] public pathCommands;
     string[] public colors;
 
-    /// @param `_expirationTimestamp` the date where the EconNFT will expire (timestamp in seconds).
-    /// @param `_totalSupply` maximum number of NFT that is going to be minted.
+    /// @param _totalSupply maximum number of NFT that is going to be minted.
+    /// @param _expirationTimestamp the date where the EconNFT will expire (timestamp in seconds).
     /// @dev Variables used to make the JPEG are set in order to construct an SVG later on. 
     constructor(uint256 _totalSupply, uint256 _expirationTimestamp) ERC721("Econteric IP", "ECIP") Ownable() public {
         totalSupply = _totalSupply;
@@ -79,13 +79,14 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Call the ERC721 `_burn()` function which burn an NFT and sends it to the address(0).
+    /// @param econNFTId the id of the NFT you want to burn.
     function burn(uint256 econNFTId) public onlyMinter {
         _burn(econNFTId);
     }
 
     /// @notice Mint an property right NFT.
-    /// @param `to` the address to send to the minted NFT.
-    /// @param `econNFTId` the id of the NFT to mint.
+    /// @param to the address to send to the minted NFT.
+    /// @param econNFTId the id of the NFT to mint.
     function _mintTo(address to, uint256 econNFTId) internal returns (uint256) {
         seeds[econNFTId] = Seed({
             expirationTimestamp: currentExpirationTimestamp
@@ -96,8 +97,8 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Contain all the informations needed for read this NFT informations.
-    /// @param `tokenId` the id of the token you would like to read information from.
-    /// @return `data` a 64 based encoded string containing a json object with all the informations.
+    /// @param tokenId the id of the token you would like to read information from.
+    /// @return data a 64 based encoded string containing a json object with all the informations.
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         uint256 year;
         uint256 month;
@@ -125,8 +126,8 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Transform a uint type into a string type. Used to encode tokenURI().
-    /// @param `_i` the uint to encode into string.
-    /// @return `_uintAsString` the same number but in a string format.
+    /// @param _i the uint to encode into string.
+    /// @return _uintAsString the same number but in a string format.
     /// @dev Function taken from https://github.com/provable-things/ethereum-api/blob/master/provableAPI_0.6.sol
     function uint2str(uint _i) internal pure returns (string memory _uintAsString) {
         if (_i == 0) {
@@ -151,19 +152,19 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Takes a timestamp in seconds and convert it into a human readable date.
-    /// @param `timestamp` the timestamp you want to convert.
-    /// @return `year` the year from your timestamp.
-    /// @return `month` the month from your timestamp (between 1 and 12).
-    /// @return `day` the day from your timestamp (between 1 and 31).
+    /// @param timestamp the timestamp you want to convert.
+    /// @return year the year from your timestamp.
+    /// @return month the month from your timestamp (between 1 and 12).
+    /// @return day the day from your timestamp (between 1 and 31).
     function timestampToDate(uint timestamp) internal pure returns (uint year, uint month, uint day) {
         (year, month, day) = _daysToDate(timestamp / SECONDS_PER_DAY);
     }
 
     /// @notice Calculate year/month/day from the number of days _days since 1970/01/01.
-    /// @param `_days` the number of day between the timestamp you can to convert into a date and 01/01/1970.
-    /// @return `year` the year from your timestamp.
-    /// @return `month` the month from your timestamp (between 1 and 12).
-    /// @return `day` the day from your timestamp (between 1 and 31).
+    /// @param _days the number of day between the timestamp you can to convert into a date and 01/01/1970.
+    /// @return year the year from your timestamp.
+    /// @return month the month from your timestamp (between 1 and 12).
+    /// @return day the day from your timestamp (between 1 and 31).
     /// @dev Function taken from https://etherscan.io/address/0x78f96b2d5f717fa9ad416957b79d825cc4cce69d#code.
     function _daysToDate(uint _days) internal pure returns (uint year, uint month, uint day) {
         int __days = int(_days);
@@ -185,8 +186,8 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Generate a full SVG component.
-    /// @param `_randomNumber` is a random number used to construct the SVG (the more random the better).
-    /// @return `finalSvg` the full SVG component readable by a browser.
+    /// @param _randomNumber is a random number used to construct the SVG (the more random the better).
+    /// @return finalSvg the full SVG component readable by a browser.
     /// @dev The random number is used to print random lines and random colors on the final SVG.
     function generateSVG(uint256 _randomNumber) public view returns(string memory finalSvg) {
         uint256 numberOfPath = (_randomNumber % maxNumberOfPath) + 1;
@@ -200,8 +201,8 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Generate different paths that creates the SVG lines.
-    /// @param `_randomNumber` is a random number from the `generatePath()` function.
-    /// @return `pathSvg` a string containing all SVG instructions.
+    /// @param _randomNumber is a random number from the `generatePath()` function.
+    /// @return pathSvg a string containing all SVG instructions.
     /// @dev Function called by the `generateSVG()` function.
     function generatePath(uint256 _randomNumber) public view returns(string memory pathSvg) {
         uint256 numberOfPathCommands = (_randomNumber % maxNumberOfPathCommands) + 1;
@@ -216,8 +217,8 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Generate the paths to create the SVG.
-    /// @param `_randomNumber` is a random number from the `generatePath()` function.
-    /// @return `pathCommand` a string containing the paths to create the SVG.
+    /// @param _randomNumber is a random number from the `generatePath()` function.
+    /// @return pathCommand a string containing the paths to create the SVG.
     /// @dev Called by the `generatePath()` function.
     function generatePathCommand(uint256 _randomNumber) public view returns(string memory pathCommand) {
         pathCommand = pathCommands[_randomNumber % pathCommands.length];
@@ -227,8 +228,8 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Takes a SVG and encode it while still keeping it readable by a browser.
-    /// @param `_svg` is the SVG component.
-    /// @return `imageURI` a string readable by the browser which will display the SVG.
+    /// @param _svg is the SVG component.
+    /// @return imageURI a string readable by the browser which will display the SVG.
     function svgToImageURI(string memory _svg) public pure returns(string memory) {
         string memory baseURL = "data:image/svg+xml;base64,";
         string memory svgBase64Encoded = Base64.encode(bytes(string(abi.encodePacked(_svg))));
@@ -237,7 +238,7 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Change the minter address.
-    /// @param `_minter` The new minter address.
+    /// @param _minter The new minter address.
     function setMinter(address _minter) external onlyOwner whenMinterNotLocked {
         minter = _minter;
     }
@@ -248,7 +249,7 @@ contract EconNFT is ERC721, Ownable {
     }
 
     /// @notice Change the expiration timestamp of the future NFTs about to get minted.
-    /// @param `_newExpirationTimestamp` the new timestamp.
+    /// @param _newExpirationTimestamp the new timestamp.
     function setCurrentExpirationTimestamp(uint256 _newExpirationTimestamp) external onlyOwner {
         currentExpirationTimestamp = _newExpirationTimestamp;
     }

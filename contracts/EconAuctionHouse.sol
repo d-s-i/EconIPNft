@@ -17,6 +17,8 @@ import { IEconAuctionHouse } from './interfaces/IEconAuctionHouse.sol';
 import { IEconNFT } from './interfaces/IEconNFT.sol';
 import { IWETH } from './interfaces/IWETH.sol';
 
+import "hardhat/console.sol";
+
 /// @title - The EconNFT auction house.
 /// @notice - Auction one EconNFT a day until max supply is reached.
 contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
@@ -215,16 +217,23 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
         auction.settled = true;
 
         if (_auction.bidder == address(0)) {
+            console.log("first if `_auction.bidder == address(0)` is true");
             econNFT.burn(_auction.econNFTId);
+            console.log("BURNING ENDED");
         } else {
+            console.log("first else is true");
             econNFT.transferFrom(address(this), _auction.bidder, _auction.econNFTId);
         }
 
         if (_auction.amount > 0) {
+            console.log("Second if `_auction.amount > 0` is true");
             _safeTransferETHWithFallback(owner(), _auction.amount);
         }
 
+        console.log("Just before the event AuctionSettled");
+
         emit AuctionSettled(_auction.econNFTId, _auction.bidder, _auction.amount);
+        console.log("Auction finished running");
     }
 
     /**

@@ -74,6 +74,8 @@ describe("EconAuctionHouse", function(){
     econAuctionHouse = await EconAuctionHouse.deploy();
     await econNFT.setMinter(econAuctionHouse.address);
 
+    console.log(`The Auction House address is : ${econAuctionHouse.address}`);
+
     assert.ok(econAuctionHouse.address);
   });
 
@@ -152,12 +154,24 @@ describe("EconAuctionHouse", function(){
   it("transfer the nft to the highest bidder", async function(){
     await econAuctionHouse.settleCurrentAndCreateNewAuction();
     const owner = await econNFT.ownerOf("2");
+
+    const currentAuction = await econAuctionHouse.auction();
+
+    for(let i = 0; i < 100; i++) {
+      const auctionnedEndTime = currentAuction[3];
+      await endAuction(auctionnedEndTime, await econAuctionHouse.duration());
+    }
+    
     assert.equal(owner, acc1.address);
   });
   it("has tokenURI", async function() {
     const tokenURI0 = await econNFT.tokenURI("0");
     const tokenURI1 = await econNFT.tokenURI("1");
     const tokenURI2 = await econNFT.tokenURI("10");
+  });
+  it("burn the NFT if there are no bidder", async function(){
+    const burn_tx = await econAuctionHouse.settleCurrentAndCreateNewAuction();
+    console.log(burn_tx);
   });
 });
 

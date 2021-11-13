@@ -48,10 +48,9 @@ contract Accounting {
 
     /// @notice Function called by the owner of an EconNFT contract to order books to the company.
     /// @dev Payements are handled in USDC.
-    function buyBooks(uint256 _numberOfBooks) payable external {
+    function buyBooks(uint256 _numberOfBooks) external {
         require(econNFT.balanceOf(msg.sender) > 0, "You need to hold the property right token to buy and sell those books.");
         require(_numberOfBooks % booksPerOrder == 0, "You can only buy a multiple of 20 books.");
-        // require(msg.value * _numberOfBooks >= bookPrice * _numberOfBooks, "Not enough funds sent to buy this number of books");
 
         usdc.transferFrom(msg.sender, owner, _numberOfBooks * bookPrice);
 

@@ -19,6 +19,7 @@ task("accounts", "Prints the list of accounts", async (args, hre) => {
 
 export default {
   solidity: "0.8.6",
+  // defaultNetrowk: "hardhat",
   mocha: {
     timeout: 200000
   },
@@ -29,7 +30,12 @@ export default {
         mnemonic: process.env.MNEMONIC
       },
       saveDeployements: true
-    }
+    },
+    // hardhat: {
+    //   forking: {
+    //     url: process.env.ETH_MAINNET_URL
+    //   }
+    // }
   },
   namedAccounts: {
     deployer: {

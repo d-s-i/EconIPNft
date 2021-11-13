@@ -5,6 +5,8 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "base64-sol/base64.sol";
 
+import "hardhat/console.sol";
+
 /// @title Economics Design Property Right NFT.
 /// @notice Contract used to verify the ownership of the Economics Design book property rights.
 contract EconNFT is ERC721, Ownable {
@@ -81,6 +83,7 @@ contract EconNFT is ERC721, Ownable {
     /// @notice Call the ERC721 `_burn()` function which burn an NFT and sends it to the address(0).
     /// @param econNFTId the id of the NFT you want to burn.
     function burn(uint256 econNFTId) public onlyMinter {
+        console.log("Calling the burn function");
         _burn(econNFTId);
     }
 
@@ -108,7 +111,7 @@ contract EconNFT is ERC721, Ownable {
         string memory svg = generateSVG(randomNumber);
         string memory imageURI = svgToImageURI(svg);
         string memory json = Base64.encode(bytes(abi.encodePacked(
-            '{"name": "Econteric Book", ', 
+            '{ "name": "Econteric Book", ', 
             '"description": "Economics and Math of Token Engineering and DeFi", ', 
             '", "expirationDate": "',
             uint2str(day),
@@ -118,7 +121,7 @@ contract EconNFT is ERC721, Ownable {
             uint2str(year),
             '", "image": "',
             imageURI,
-            '"}'
+            '" }'
         )));
 
         string memory data = string(abi.encodePacked('data:application/json;base64,', json));

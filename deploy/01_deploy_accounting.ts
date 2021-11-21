@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
+import "@nomiclabs/hardhat-etherscan";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log("deploying the accounting");
@@ -31,11 +32,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     } catch(error) {
       console.log(`\n Contract hasn't been verified, you can verify it by typing : hh verify --network rinkeby ${accounting.address} 20 ${ethers.utils.parseUnits("70.0", "6")} 0x7E8435c76a59fb12c3997bC46bD124F4aBb1C09a 0xeb8f08a975ab53e34d8a0330e0d34de942c95926`);
     }
-
     console.log(`Contract deployed at ${accounting.address}`);
-
 }
 
 export default func;
-
-export const tags = ["all", "accounting"];

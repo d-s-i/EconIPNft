@@ -4,7 +4,7 @@
 
 pragma solidity ^0.8.6;
 
-interface IEconAuctionHouse {
+interface IEconAuctionHouseUSDC {
     struct Auction {
         // ID for the Noun (ERC721 token ID)
         uint256 econNFTId;
@@ -15,7 +15,7 @@ interface IEconAuctionHouse {
         // The time that the auction is scheduled to end
         uint256 endTime;
         // The address of the current highest bid
-        address payable bidder;
+        address bidder;
         // Whether or not the auction has been settled
         bool settled;
     }
@@ -38,7 +38,7 @@ interface IEconAuctionHouse {
 
     function settleCurrentAndCreateNewAuction() external;
 
-    function createBid(uint256 econNFTId) external payable;
+    function createBid(uint256 econNFTId, uint256 _usdcAmount) external;
 
     function pause() external;
 

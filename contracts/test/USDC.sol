@@ -53,7 +53,7 @@ contract USDC is Context, IERC20, IERC20Metadata {
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
-        _totalSupply = 100000 * 10**6;
+        _totalSupply = 1000000 * 10**6;
         _balances[msg.sender] = _totalSupply;
     }
 

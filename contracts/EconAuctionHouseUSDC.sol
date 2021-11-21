@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 // LICENSE
-// econNFTAuctionHouse.sol is a modified version of Zora's AuctionHouse.sol:
+// econNFTAuctionHouse.sol is a modified version of Zora"s AuctionHouse.sol:
 // https://github.com/ourzora/auction-house/blob/54a12ec1a6cf562e49f0a4917990474b11350a2d/contracts/AuctionHouse.sol
 //
 // AuctionHouse.sol source code Copyright Zora licensed under the GPL-3.0 license.
@@ -9,22 +9,21 @@
 
 pragma solidity ^0.8.6;
 
-import { PausableUpgradeable } from '@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol';
-import { ReentrancyGuardUpgradeable } from '@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol';
-import { OwnableUpgradeable } from '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
-import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import { IEconAuctionHouse } from './interfaces/IEconAuctionHouse.sol';
-import { IEconNFT } from './interfaces/IEconNFT.sol';
-import { IWETH } from './interfaces/IWETH.sol';
+import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IEconAuctionHouseUSDC } from "./interfaces/IEconAuctionHouseUSDC.sol";
+import { IEconNFT } from "./interfaces/IEconNFT.sol";
 
 /// @title - The EconNFT auction house.
 /// @notice - Auction one EconNFT a day until max supply is reached.
-contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
+contract EconAuctionHouseUSDC is IEconAuctionHouseUSDC, PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
+    
     // The econNFT ERC721 token contract
     IEconNFT public econNFT;
 
-    // The address of the WETH contract
-    address public weth;
+    IERC20 public usdc;
 
     // The minimum amount of time left in an auction after a new bid is created
     uint256 public timeBuffer;
@@ -39,7 +38,7 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     uint256 public duration;
 
     // The active auction contract
-    IEconAuctionHouse.Auction public auction;
+    IEconAuctionHouseUSDC.Auction public auction;
 
     /**
         * @notice Initialize the auction house and base contracts,
@@ -48,7 +47,7 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
      */
     function initialize(
         IEconNFT _econNFT,
-        address _weth,
+        IERC20 _usdc,
         uint256 _timeBuffer,
         uint256 _reservePrice,
         uint8 _minBidIncrementPercentage,
@@ -60,8 +59,8 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
 
         _pause();
 
-        econNFT = IEconNFT(_econNFT);
-        weth = _weth;
+        econNFT = _econNFT;
+        usdc = _usdc;
         timeBuffer = _timeBuffer;
         reservePrice = _reservePrice;
         minBidIncrementPercentage = _minBidIncrementPercentage;
@@ -88,26 +87,35 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
         * @notice Create a bid for a Noun, with a given amount.
         * @dev This contract only accepts payment in ETH.
      */
-    function createBid(uint256 econNFTId) external payable override nonReentrant {
-        IEconAuctionHouse.Auction memory _auction = auction;
+    function createBid(uint256 econNFTId, uint256 _usdcAmount) external override nonReentrant {
+        IEconAuctionHouseUSDC.Auction memory _auction = auction;
 
-        require(_auction.econNFTId == econNFTId, 'NFT not up for auction');
-        require(block.timestamp < _auction.endTime, 'Auction expired');
-        require(msg.value >= reservePrice, 'Must send at least reservePrice');
+        require(_auction.econNFTId == econNFTId, "NFT not up for auction");
+        require(block.timestamp < _auction.endTime, "Auction expired");
+        // require(msg.value >= reservePrice, "Must send at least reservePrice");
+        // require(
+        //     msg.value >= _auction.amount + ((_auction.amount * minBidIncrementPercentage) / 100),
+        //     "Must send more than last bid by minBidIncrementPercentage amount"
+        // );
+
+        require(_usdcAmount >= reservePrice, "Must send at least reservePrice");
         require(
-            msg.value >= _auction.amount + ((_auction.amount * minBidIncrementPercentage) / 100),
-            'Must send more than last bid by minBidIncrementPercentage amount'
+            _usdcAmount >= _auction.amount + ((_auction.amount * minBidIncrementPercentage) / 100),
+            "Must send more than last bid by minBidIncrementPercentage amount"
         );
 
-        address payable lastBidder = _auction.bidder;
+        address lastBidder = _auction.bidder;
 
         // Refund the last bidder, if applicable.
         if (lastBidder != address(0)) {
-            _safeTransferETHWithFallback(lastBidder, _auction.amount);
+            // _safeTransferETHWithFallback(lastBidder, _auction.amount);
+            usdc.transfer(lastBidder, _auction.amount);
         }
 
-        auction.amount = msg.value;
-        auction.bidder = payable(msg.sender);
+        usdc.transferFrom(msg.sender, address(this), _usdcAmount);
+
+        auction.amount = _usdcAmount;
+        auction.bidder = msg.sender;
 
         // Extend the auction if the bid was received within `timeBuffer` of the auction end time.
         bool extended = _auction.endTime - block.timestamp < timeBuffer;
@@ -115,7 +123,7 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
             auction.endTime = _auction.endTime = block.timestamp + timeBuffer;
         }
 
-        emit AuctionBid(_auction.econNFTId, msg.sender, msg.value, extended);
+        emit AuctionBid(_auction.econNFTId, msg.sender, _usdcAmount, extended);
 
         if (extended) {
             emit AuctionExtended(_auction.econNFTId, _auction.endTime);
@@ -206,10 +214,10 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
         * @dev If there are no bids, the Noun is burned.
      */
     function _settleAuction() internal {
-        IEconAuctionHouse.Auction memory _auction = auction;
+        IEconAuctionHouseUSDC.Auction memory _auction = auction;
 
         require(_auction.startTime != 0, "Auction hasn't begun");
-        require(!_auction.settled, 'Auction has already been settled');
+        require(!_auction.settled, "Auction has already been settled");
         require(block.timestamp >= _auction.endTime, "Auction hasn't completed");
 
         auction.settled = true;
@@ -221,7 +229,8 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
         }
 
         if (_auction.amount > 0) {
-            _safeTransferETHWithFallback(owner(), _auction.amount);
+            // _safeTransferETHWithFallback(owner(), _auction.amount);
+            usdc.transfer(owner(), _auction.amount);
         }
 
         emit AuctionSettled(_auction.econNFTId, _auction.bidder, _auction.amount);
@@ -230,19 +239,19 @@ contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyG
     /**
         * @notice Transfer ETH. If the ETH transfer fails, wrap the ETH and try send it as WETH.
      */
-    function _safeTransferETHWithFallback(address to, uint256 amount) internal {
-        if (!_safeTransferETH(to, amount)) {
-            IWETH(weth).deposit{ value: amount }();
-            IERC20(weth).transfer(to, amount);
-        }
-    }
+    // function _safeTransferETHWithFallback(address to, uint256 amount) internal {
+    //     if (!_safeTransferETH(to, amount)) {
+    //         IWETH(weth).deposit{ value: amount }();
+    //         IERC20(weth).transfer(to, amount);
+    //     }
+    // }
 
     /**
         * @notice Transfer ETH and return the success status.
         * @dev This function only forwards 30,000 gas to the callee.
      */
-    function _safeTransferETH(address to, uint256 value) internal returns (bool) {
-        (bool success, ) = to.call{ value: value, gas: 30_000 }(new bytes(0));
-        return success;
-    }
+    // function _safeTransferETH(address to, uint256 value) internal returns (bool) {
+    //     (bool success, ) = to.call{ value: value, gas: 30_000 }(new bytes(0));
+    //     return success;
+    // }
 }

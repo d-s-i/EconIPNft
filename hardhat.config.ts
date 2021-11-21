@@ -31,6 +31,13 @@ export default {
       },
       saveDeployements: true
     },
+    polygonTestnet: {
+      url: process.env.POLYGON_TEST_URL,
+      accounts: {
+        mnemonic: process.env.MNEMONIC
+      },
+      saveDeployements: true
+    }
     // hardhat: {
     //   forking: {
     //     url: process.env.ETH_MAINNET_URL

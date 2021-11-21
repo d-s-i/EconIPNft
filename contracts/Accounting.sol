@@ -56,7 +56,6 @@ contract Accounting {
 
         numberOfBooksBought[msg.sender] += _numberOfBooks;
         totalNumberOfBooksSold += _numberOfBooks;
-
     }
 
     /// @notice Set the number of books per order.

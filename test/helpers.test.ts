@@ -25,16 +25,16 @@ export function displayAuction(currentAuction: Auction) {
     console.log(`Is auction settled ? : ${auctionnedSettled.toString()}`);
 }
 
-export async function deployAllBasicContracts() {
+export async function deployAllBasicContracts(minterAddress: string) {
     const EconNFT = await ethers.getContractFactory("EconNFT");
-    const WETH = await ethers.getContractFactory("WETH");
     const USDC = await ethers.getContractFactory("USDC");
+    const WETH = await ethers.getContractFactory("WETH");
   
-    const econNFT = await EconNFT.deploy(0, EXPIRATION_DATE);
-    const weth = await WETH.deploy();
+    const econNFT = await EconNFT.deploy(minterAddress);
     const usdc = await USDC.deploy("USDC", "USDC");
+    const weth = await WETH.deploy();
 
-    return [econNFT, weth, usdc];
+    return [econNFT, usdc, weth];
 }
 
 export async function deployAuctionHouse() {

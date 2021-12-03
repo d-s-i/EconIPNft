@@ -12,7 +12,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     console.log("deploying econ NFT");
     
-    if(+chainId === 4 || +chainId === 31337) {
+    if(+chainId === 4 || +chainId === 31337 || +chainId === 80001) {
         const WETH_ADDRESS = "0xc778417E063141139Fce010982780140Aa0cD5Ab";
         
         const accounts = await hre.ethers.getSigners();

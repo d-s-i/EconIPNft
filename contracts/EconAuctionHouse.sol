@@ -1,248 +1,483 @@
-// SPDX-License-Identifier: GPL-3.0
+pragma solidity ^0.8.0;
 
-// LICENSE
-// econNFTAuctionHouse.sol is a modified version of Zora's AuctionHouse.sol:
-// https://github.com/ourzora/auction-house/blob/54a12ec1a6cf562e49f0a4917990474b11350a2d/contracts/AuctionHouse.sol
-//
-// AuctionHouse.sol source code Copyright Zora licensed under the GPL-3.0 license.
-// With modifications by Nounders DAO and then by Economics design.
+// import "./interfaces/IGBM.sol";
+// import "./interfaces/IGBMInitiator.sol";
+import "./interfaces/IERC20.sol";
+import "./interfaces/IERC721.sol";
+import "./interfaces/IERC721TokenReceiver.sol";
+import "./interfaces/IERC1155.sol";
+import "./interfaces/IERC1155TokenReceiver.sol";
+// import "./libraries/EconAppStorage.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-pragma solidity ^0.8.6;
+import "hardhat/console.sol";
 
-import { PausableUpgradeable } from '@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol';
-import { ReentrancyGuardUpgradeable } from '@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol';
-import { OwnableUpgradeable } from '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
-import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import { IEconAuctionHouse } from './interfaces/IEconAuctionHouse.sol';
-import { IEconNFT } from './interfaces/IEconNFT.sol';
-import { IWETH } from './interfaces/IWETH.sol';
+contract EconAuctionHouse is Ownable {
 
-/// @title - The EconNFT auction house.
-/// @notice - Auction one EconNFT a day until max supply is reached.
-contract EconAuctionHouse is IEconAuctionHouse, PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
-    // The econNFT ERC721 token contract
-    IEconNFT public econNFT;
+        //Event emitted when an auction is being setup
+    event Auction_Initialized(
+        uint256 indexed _auctionID,
+        uint256 indexed _tokenID,
+        uint256 indexed _tokenIndex,
+        address _contractAddress,
+        bytes4 _tokenKind
+    );
 
-    // The address of the WETH contract
-    address public weth;
+    //Event emitted when the start time of an auction changes (due to admin interaction )
+    event Auction_StartTimeUpdated(uint256 indexed _auctionID, uint256 _startTime);
 
-    // The minimum amount of time left in an auction after a new bid is created
-    uint256 public timeBuffer;
+    //Event emitted when the end time of an auction changes (be it due to admin interaction or bid at the end)
+    event Auction_EndTimeUpdated(uint256 indexed _auctionID, uint256 _endTime);
 
-    // The minimum price accepted in an auction
-    uint256 public reservePrice;
+    //Event emitted when a Bid is placed
+    event Auction_BidPlaced(uint256 indexed _auctionID, address indexed _bidder, uint256 _bidAmount);
 
-    // The minimum percentage difference between the last bid amount and the current bid
-    uint8 public minBidIncrementPercentage;
+    //Event emitted when a bid is removed (due to a new bid displacing it)
+    event Auction_BidRemoved(uint256 indexed _auctionID, address indexed _bidder, uint256 _bidAmount);
 
-    // The duration of a single auction
-    uint256 public duration;
+    //Event emitted when incentives are paid (due to a new bid rewarding the _earner bid)
+    event Auction_IncentivePaid(uint256 indexed _auctionID, address indexed _earner, uint256 _incentiveAmount);
 
-    // The active auction contract
-    IEconAuctionHouse.Auction public auction;
+    event Contract_BiddingAllowed(address indexed _contract, bool _biddingAllowed);
 
-    /**
-        * @notice Initialize the auction house and base contracts,
-        * populate configuration values, and pause the contract.
-        * @dev This function can only be called once.
-     */
-    function initialize(
-        IEconNFT _econNFT,
-        address _weth,
-        uint256 _timeBuffer,
-        uint256 _reservePrice,
-        uint8 _minBidIncrementPercentage,
-        uint256 _duration
-    ) external initializer {
-        __Pausable_init();
-        __ReentrancyGuard_init();
-        __Ownable_init();
+    event Auction_ItemClaimed(uint256 indexed _auctionID);
 
-        _pause();
-
-        econNFT = IEconNFT(_econNFT);
-        weth = _weth;
-        timeBuffer = _timeBuffer;
-        reservePrice = _reservePrice;
-        minBidIncrementPercentage = _minBidIncrementPercentage;
-        duration = _duration;
+    struct TokenRepresentation {
+        address contractAddress; // The contract address
+        uint256 tokenId; // The ID of the token on the contract
+        bytes4 tokenKind; // The ERC name of the token implementation bytes4(keccak256("ERC721")) or bytes4(keccak256("ERC1155"))
     }
 
-    /**
-        * @notice Settle the current auction, mint a new Noun, and put it up for auction.
-     */
-    function settleCurrentAndCreateNewAuction() external override nonReentrant whenNotPaused {
-        _settleAuction();
-        _createAuction();
+    struct Auction {
+        address owner;
+        address highestBidder;
+        uint256 highestBid;
+        uint256 auctionDebt;
+        uint256 dueIncentives;
+        address contractAddress;
+        uint256 startTime;
+        uint256 endTime;
+        uint256 hammerTimeDuration;
+        uint256 bidDecimals;
+        uint256 stepMin;
+        uint256 incMin;
+        uint256 incMax;
+        uint256 bidMultiplier;
+        bool biddingAllowed;
     }
 
-    /**
-        * @notice Settle the current auction.
-        * @dev This function can only be called when the contract is paused.
-     */
-    function settleAuction() external override whenPaused nonReentrant {
-        _settleAuction();
+    struct Collection {
+        uint256 startTime;
+        uint256 endTime;
+        uint256 hammerTimeDuration;
+        uint256 bidDecimals;
+        uint256 stepMin;
+        uint256 incMin; // minimal earned incentives
+        uint256 incMax; // maximal earned incentives
+        uint256 bidMultiplier; // bid incentive growth multiplier
+        bool biddingAllowed; // Allow to start/pause ongoing auctions
     }
 
-    /**
-        * @notice Create a bid for a Noun, with a given amount.
-        * @dev This contract only accepts payment in ETH.
-     */
-    function createBid(uint256 econNFTId) external payable override nonReentrant {
-        IEconAuctionHouse.Auction memory _auction = auction;
+    struct AppStorage {
+        address pixelcraft;
+        address playerRewards;
+        address daoTreasury;
+        //Contract address storing the ERC20 currency used in auctions
+        address erc20Currency;
+        mapping(uint256 => TokenRepresentation) tokenMapping; //_auctionId => token_primaryKey
+        mapping(address => mapping(uint256 => mapping(uint256 => uint256))) auctionMapping; // contractAddress => tokenId => TokenIndex => _auctionId
+        //var storing individual auction settings. if != null, they take priority over collection settings
+        mapping(uint256 => Auction) auctions; //_auctionId => auctions
+        mapping(uint256 => bool) auctionItemClaimed;
+        //var storing contract wide settings. Those are used if no auctionId specific parameters is initialized
+        mapping(address => Collection) collections; //tokencontract => collections
+        mapping(address => mapping(uint256 => uint256)) erc1155TokensIndex; //Contract => TokenID => Amount being auctionned
+        mapping(address => mapping(uint256 => uint256)) erc1155TokensUnderAuction; //Contract => TokenID => Amount being auctionned
+        bytes backendPubKey;
+    }
 
-        require(_auction.econNFTId == econNFTId, 'NFT not up for auction');
-        require(block.timestamp < _auction.endTime, 'Auction expired');
-        require(msg.value >= reservePrice, 'Must send at least reservePrice');
+    AppStorage internal s;
+
+    constructor() Ownable() public {}    
+
+    /// @notice Register an auction contract default parameters for a GBM auction. To use to save gas
+    /// @param _contract The token contract the auctionned token belong to
+    function registerAnAuctionContract(
+        address _contract,
+        uint256 _startTime,
+        uint256 _endTime,
+        uint256 _hammerTimeDuration,
+        uint256 _bidDecimals,
+        uint256 _stepMin,
+        uint256 _incMin,
+        uint256 _incMax
+    ) public onlyOwner {
+        s.collections[_contract].startTime = _startTime;
+        s.collections[_contract].endTime = _endTime;
+        s.collections[_contract].hammerTimeDuration = _hammerTimeDuration;
+        s.collections[_contract].bidDecimals = _bidDecimals;
+        s.collections[_contract].stepMin = _stepMin;
+        s.collections[_contract].incMin = _incMin;
+        s.collections[_contract].incMax = _incMax;
+    }
+
+    /// @notice Register an auction token and emit the relevant AuctionInitialized & AuctionStartTimeUpdated events
+    /// Throw if the token owner is not the GBM smart contract/supply of auctionned 1155 token is insufficient
+    /// @param _tokenContract The token contract the auctionned token belong to
+    /// @param _tokenId The token ID of the token being auctionned
+    /// @param _tokenKind either bytes4(keccak256("ERC721")) or bytes4(keccak256("ERC1155"))
+    /// @param _useInitiator Set to `false` if you want to use the default value registered for the token contract (if wanting to reset to default,
+    /// use `true`)
+    function registerAnAuctionToken(
+        address _tokenContract,
+        uint256 _tokenId,
+        bytes4 _tokenKind,
+        bool _useInitiator
+    ) public onlyOwner {
+        modifyAnAuctionToken(_tokenContract, _tokenId, _tokenKind, _useInitiator, 0, false);
+    }
+
+    /// @notice Register an auction token and emit the relevant AuctionInitialized & AuctionStartTimeUpdated events
+    /// Throw if the token owner is not the GBM smart contract/supply of auctionned 1155 token is insufficient
+    /// @param _tokenContract The token contract the auctionned token belong to
+    /// @param _tokenId The token ID of the token being auctionned
+    /// @param _tokenKind either bytes4(keccak256("ERC721")) or bytes4(keccak256("ERC1155"))
+    /// @param _useInitiator Set to `false` if you want to use the default value registered for the token contract (if wanting to reset to default,
+    /// use `true`)
+    /// @param _1155Index Set to 0 if dealing with an ERC-721 or registering new 1155 test. otherwise, set to relevant index you want to reinitialize
+    /// @param _rewrite Set to true if you want to rewrite the data of an existing auction, false otherwise
+    function modifyAnAuctionToken(
+        address _tokenContract,
+        uint256 _tokenId,
+        bytes4 _tokenKind,
+        bool _useInitiator,
+        uint256 _1155Index,
+        bool _rewrite
+    ) internal {
+        if (!_rewrite) {
+            _1155Index = s.erc1155TokensIndex[_tokenContract][_tokenId]; //_1155Index was 0 if creating new auctions
+            require(s.auctionMapping[_tokenContract][_tokenId][_1155Index] == 0, "The auction aleady exist for the specified token");
+        } else {
+            require(s.auctionMapping[_tokenContract][_tokenId][_1155Index] != 0, "The auction doesn't exist yet for the specified token");
+        }
+
+        //Checking the kind of token being registered
         require(
-            msg.value >= _auction.amount + ((_auction.amount * minBidIncrementPercentage) / 100),
-            'Must send more than last bid by minBidIncrementPercentage amount'
+            _tokenKind == bytes4(keccak256("ERC721")) || _tokenKind == bytes4(keccak256("ERC1155")),
+            "registerAnAuctionToken: Only ERC1155 and ERC721 tokens are supported"
         );
 
-        address payable lastBidder = _auction.bidder;
+        //Building the auction object
+        TokenRepresentation memory newAuction;
+        newAuction.contractAddress = _tokenContract;
+        newAuction.tokenId = _tokenId;
+        newAuction.tokenKind = _tokenKind;
 
-        // Refund the last bidder, if applicable.
-        if (lastBidder != address(0)) {
-            _safeTransferETHWithFallback(lastBidder, _auction.amount);
-        }
+        uint256 _auctionId;
 
-        auction.amount = msg.value;
-        auction.bidder = payable(msg.sender);
+        if (_tokenKind == bytes4(keccak256("ERC721"))) {
+            require(
+                msg.sender == Ownable(_tokenContract).owner() || address(this) == IERC721(_tokenContract).ownerOf(_tokenId),
+                "registerAnAuctionToken: the specified ERC-721 token cannot be auctioned"
+            );
 
-        // Extend the auction if the bid was received within `timeBuffer` of the auction end time.
-        bool extended = _auction.endTime - block.timestamp < timeBuffer;
-        if (extended) {
-            auction.endTime = _auction.endTime = block.timestamp + timeBuffer;
-        }
-
-        emit AuctionBid(_auction.econNFTId, msg.sender, msg.value, extended);
-
-        if (extended) {
-            emit AuctionExtended(_auction.econNFTId, _auction.endTime);
-        }
-    }
-
-    /**
-        * @notice Pause the econNFT auction house.
-        * @dev This function can only be called by the owner when the
-        * contract is unpaused. While no new auctions can be started when paused,
-        * anyone can settle an ongoing auction.
-     */
-    function pause() external override onlyOwner {
-        _pause();
-    }
-
-    /**
-        * @notice Unpause the econNFT auction house.
-        * @dev This function can only be called by the owner when the
-        * contract is paused. If required, this function will start a new auction.
-     */
-    function unpause() external override onlyOwner {
-        _unpause();
-
-        if (auction.startTime == 0 || auction.settled) {
-            _createAuction();
-        }
-    }
-
-    /**
-        * @notice Set the auction time buffer.
-        * @dev Only callable by the owner.
-     */
-    function setTimeBuffer(uint256 _timeBuffer) external override onlyOwner {
-        timeBuffer = _timeBuffer;
-
-        emit AuctionTimeBufferUpdated(_timeBuffer);
-    }
-
-    /**
-        * @notice Set the auction reserve price.
-        * @dev Only callable by the owner.
-     */
-    function setReservePrice(uint256 _reservePrice) external override onlyOwner {
-        reservePrice = _reservePrice;
-
-        emit AuctionReservePriceUpdated(_reservePrice);
-    }
-
-    /**
-        * @notice Set the auction minimum bid increment percentage.
-        * @dev Only callable by the owner.
-     */
-    function setMinBidIncrementPercentage(uint8 _minBidIncrementPercentage) external override onlyOwner {
-        minBidIncrementPercentage = _minBidIncrementPercentage;
-
-        emit AuctionMinBidIncrementPercentageUpdated(_minBidIncrementPercentage);
-    }
-
-    /**
-        * @notice Create an auction.
-        * @dev Store the auction details in the `auction` state variable and emit an AuctionCreated event.
-        * If the mint reverts, the minter was updated without pausing this contract first. To remedy this,
-        * catch the revert and pause this contract.
-     */
-    function _createAuction() internal {
-        try econNFT.mint() returns (uint256 econNFTId) {
-            uint256 startTime = block.timestamp;
-            uint256 endTime = startTime + duration;
-
-            auction = Auction({
-                econNFTId: econNFTId,
-                amount: 0,
-                startTime: startTime,
-                endTime: endTime,
-                bidder: payable(0),
-                settled: false
-            });
-
-            emit AuctionCreated(econNFTId, startTime, endTime);
-        } catch Error(string memory) {
-            _pause();
-        }
-    }
-
-    /**
-        * @notice Settle an auction, finalizing the bid and paying out to the owner.
-        * @dev If there are no bids, the Noun is burned.
-     */
-    function _settleAuction() internal {
-        IEconAuctionHouse.Auction memory _auction = auction;
-
-        require(_auction.startTime != 0, "Auction hasn't begun");
-        require(!_auction.settled, 'Auction has already been settled');
-        require(block.timestamp >= _auction.endTime, "Auction hasn't completed");
-
-        auction.settled = true;
-
-        if (_auction.bidder == address(0)) {
-            econNFT.burn(_auction.econNFTId);
+            _auctionId = uint256(keccak256(abi.encodePacked(_tokenContract, _tokenId, _tokenKind)));
+            s.auctionMapping[_tokenContract][_tokenId][0] = _auctionId;
         } else {
-            econNFT.transferFrom(address(this), _auction.bidder, _auction.econNFTId);
+            require(
+                msg.sender == Ownable(_tokenContract).owner() ||
+                    s.erc1155TokensUnderAuction[_tokenContract][_tokenId] < IERC1155(_tokenContract).balanceOf(address(this), _tokenId),
+                "registerAnAuctionToken:  the specified ERC-1155 token cannot be auctionned"
+            );
+
+            require(
+                _1155Index <= s.erc1155TokensIndex[_tokenContract][_tokenId],
+                "The specified _1155Index have not been reached yet for this token"
+            );
+
+            _auctionId = uint256(keccak256(abi.encodePacked(_tokenContract, _tokenId, _tokenKind, _1155Index)));
+
+            if (!_rewrite) {
+                s.erc1155TokensIndex[_tokenContract][_tokenId] = s.erc1155TokensIndex[_tokenContract][_tokenId] + 1;
+                s.erc1155TokensUnderAuction[_tokenContract][_tokenId] = s.erc1155TokensUnderAuction[_tokenContract][_tokenId] + 1;
+            }
+
+            s.auctionMapping[_tokenContract][_tokenId][_1155Index] = _auctionId;
         }
 
-        if (_auction.amount > 0) {
-            _safeTransferETHWithFallback(owner(), _auction.amount);
+        s.tokenMapping[_auctionId] = newAuction;
+
+        if (_useInitiator) {
+            s.auctions[_auctionId].owner = owner();
+            s.auctions[_auctionId].startTime = s.collections[_tokenContract].startTime;
+            s.auctions[_auctionId].endTime = s.collections[_tokenContract].endTime;
+            s.auctions[_auctionId].hammerTimeDuration = s.collections[_tokenContract].hammerTimeDuration;
+            s.auctions[_auctionId].bidDecimals = s.collections[_tokenContract].bidDecimals;
+            s.auctions[_auctionId].stepMin = s.collections[_tokenContract].stepMin;
+            s.auctions[_auctionId].incMin = s.collections[_tokenContract].incMin;
+            s.auctions[_auctionId].incMax = s.collections[_tokenContract].incMax;
+            s.auctions[_auctionId].bidMultiplier = s.collections[_tokenContract].bidMultiplier;
         }
 
-        emit AuctionSettled(_auction.econNFTId, _auction.bidder, _auction.amount);
+        //Event emitted when an auction is being setup
+        emit Auction_Initialized(_auctionId, _tokenId, _1155Index, _tokenContract, _tokenKind);
+
+        //Event emitted when the start time of an auction changes (due to admin interaction )
+        emit Auction_StartTimeUpdated(_auctionId, getAuctionStartTime(_auctionId));
     }
 
-    /**
-        * @notice Transfer ETH. If the ETH transfer fails, wrap the ETH and try send it as WETH.
-     */
-    function _safeTransferETHWithFallback(address to, uint256 amount) internal {
-        if (!_safeTransferETH(to, amount)) {
-            IWETH(weth).deposit{ value: amount }();
-            IERC20(weth).transfer(to, amount);
+    /// @notice Place a GBM bid for a GBM auction
+    /// @param _auctionId The auction you want to bid on
+    /// @param _bidAmount The amount of the ERC20 token the bid is made of. They should be withdrawable by this contract.
+    /// @param _highestBid The current higest bid. Throw if incorrect.
+    function bid(
+        uint256 _auctionId,
+        uint256 _bidAmount,
+        uint256 _highestBid
+    ) external {
+        console.log("inside contract", s.collections[s.tokenMapping[_auctionId].contractAddress].biddingAllowed);
+        require(s.collections[s.tokenMapping[_auctionId].contractAddress].biddingAllowed, "bid: bidding is currently not allowed");
+
+        require(_bidAmount > 1, "bid: _bidAmount cannot be 0");
+
+        require(_highestBid == s.auctions[_auctionId].highestBid, "bid: current highest bid does not match the submitted transaction _highestBid");
+
+        //An auction start time of 0 also indicate the auction has not been created at all
+
+        require(getAuctionStartTime(_auctionId) <= block.timestamp && getAuctionStartTime(_auctionId) != 0, "bid: Auction has not started yet");
+        require(getAuctionEndTime(_auctionId) >= block.timestamp, "bid: Auction has already ended");
+
+        require(_bidAmount > _highestBid, "bid: _bidAmount must be higher than _highestBid");
+
+        require(
+            // (_highestBid * (getAuctionBidDecimals(_auctionId)) + (getAuctionStepMin(_auctionId) / getAuctionBidDecimals(_auctionId))) >= _highestBid,
+            // "bid: _bidAmount must meet the minimum bid"
+
+            (_highestBid * (getAuctionBidDecimals(_auctionId) + getAuctionStepMin(_auctionId))) <= (_bidAmount * getAuctionBidDecimals(_auctionId)),
+            "bid: _bidAmount must meet the minimum bid"
+        );
+
+        //Transfer the money of the bidder to the GBM smart contract
+        IERC20(s.erc20Currency).transferFrom(msg.sender, address(this), _bidAmount);
+
+        //Extend the duration time of the auction if we are close to the end
+        if (getAuctionEndTime(_auctionId) < block.timestamp + getAuctionHammerTimeDuration(_auctionId)) {
+            s.auctions[_auctionId].endTime = block.timestamp + getAuctionHammerTimeDuration(_auctionId);
+            emit Auction_EndTimeUpdated(_auctionId, s.auctions[_auctionId].endTime);
+        }
+
+        // Saving incentives for later sending
+        uint256 duePay = s.auctions[_auctionId].dueIncentives;
+        address previousHighestBidder = s.auctions[_auctionId].highestBidder;
+        uint256 previousHighestBid = s.auctions[_auctionId].highestBid;
+
+        // Emitting the event sequence
+        if (previousHighestBidder != address(0)) {
+            emit Auction_BidRemoved(_auctionId, previousHighestBidder, previousHighestBid);
+        }
+
+        if (duePay != 0) {
+            s.auctions[_auctionId].auctionDebt = s.auctions[_auctionId].auctionDebt + duePay;
+            emit Auction_IncentivePaid(_auctionId, previousHighestBidder, duePay);
+        }
+
+        emit Auction_BidPlaced(_auctionId, msg.sender, _bidAmount);
+
+        // Calculating incentives for the new bidder
+        s.auctions[_auctionId].dueIncentives = calculateIncentives(_auctionId, _bidAmount);
+
+        //Setting the new bid/bidder as the highest bid/bidder
+        s.auctions[_auctionId].highestBidder = msg.sender;
+        s.auctions[_auctionId].highestBid = _bidAmount;
+
+        if ((previousHighestBid + duePay) != 0) {
+            //Refunding the previous bid as well as sending the incentives
+
+            //Added to prevent revert
+            IERC20(s.erc20Currency).approve(address(this), (previousHighestBid + duePay));
+
+            IERC20(s.erc20Currency).transferFrom(address(this), previousHighestBidder, (previousHighestBid + duePay));
         }
     }
 
-    /**
-        * @notice Transfer ETH and return the success status.
-        * @dev This function only forwards 30,000 gas to the callee.
-     */
-    function _safeTransferETH(address to, uint256 value) internal returns (bool) {
-        (bool success, ) = to.call{ value: value, gas: 30_000 }(new bytes(0));
-        return success;
+    /// @notice Allow/disallow bidding and claiming for a whole token contract address.
+    /// @param _contract The token contract the auctionned token belong to
+    /// @param _value True if bidding/claiming should be allowed.
+    function setBiddingAllowed(address _contract, bool _value) external onlyOwner {
+        s.collections[_contract].biddingAllowed = _value;
+        emit Contract_BiddingAllowed(_contract, _value);
+    }
+
+    function getAuctionInfo(uint256 _auctionId) external view returns (Auction memory auctionInfo_) {
+        auctionInfo_ = s.auctions[_auctionId];
+        auctionInfo_.contractAddress = s.tokenMapping[_auctionId].contractAddress;
+        auctionInfo_.biddingAllowed = s.collections[s.tokenMapping[_auctionId].contractAddress].biddingAllowed;
+    }
+
+    function getAuctionHighestBidder(uint256 _auctionId) external view returns (address) {
+        return s.auctions[_auctionId].highestBidder;
+    }
+
+    function getAuctionHighestBid(uint256 _auctionId) external view returns (uint256) {
+        return s.auctions[_auctionId].highestBid;
+    }
+
+    function getAuctionDebt(uint256 _auctionId) external view returns (uint256) {
+        return s.auctions[_auctionId].auctionDebt;
+    }
+
+    function getAuctionDueIncentives(uint256 _auctionId) external view returns (uint256) {
+        return s.auctions[_auctionId].dueIncentives;
+    }
+
+    function getAuctionID(address _contract, uint256 _tokenID) external view returns (uint256) {
+        return s.auctionMapping[_contract][_tokenID][0];
+    }
+
+    function getContractFromId(uint256 _auctionId) public view returns(address) {
+        return(s.tokenMapping[_auctionId].contractAddress);
+    }
+
+    function getBiddingAllowed(uint256 _auctionId) public view returns(bool) {
+        return(s.collections[s.tokenMapping[_auctionId].contractAddress].biddingAllowed);
+    }
+
+    // function getAuctionID(
+    //     address _contract,
+    //     uint256 _tokenID,
+    //     uint256 _tokenIndex
+    // ) external view returns (uint256) {
+    //     return s.auctionMapping[_contract][_tokenID][_tokenIndex];
+    // }
+
+    function getTokenKind(uint256 _auctionId) external view returns (bytes4) {
+        return s.tokenMapping[_auctionId].tokenKind;
+    }
+
+    function getTokenId(uint256 _auctionId) external view returns (uint256) {
+        return s.tokenMapping[_auctionId].tokenId;
+    }
+
+    function getContractAddress(uint256 _auctionId) external view returns (address) {
+        return s.tokenMapping[_auctionId].contractAddress;
+    }
+
+    function getAuctionStartTime(uint256 _auctionId) public view returns (uint256) {
+        if (s.auctions[_auctionId].startTime != 0) {
+            return s.auctions[_auctionId].startTime;
+        } else {
+            return s.collections[s.tokenMapping[_auctionId].contractAddress].startTime;
+        }
+    }
+
+    function getAuctionEndTime(uint256 _auctionId) public view returns (uint256) {
+        if (s.auctions[_auctionId].endTime != 0) {
+            return s.auctions[_auctionId].endTime;
+        } else {
+            return s.collections[s.tokenMapping[_auctionId].contractAddress].endTime;
+        }
+    }
+
+    function getAuctionHammerTimeDuration(uint256 _auctionId) public view returns (uint256) {
+        if (s.auctions[_auctionId].hammerTimeDuration != 0) {
+            return s.auctions[_auctionId].hammerTimeDuration;
+        } else {
+            return s.collections[s.tokenMapping[_auctionId].contractAddress].hammerTimeDuration;
+        }
+    }
+
+    function getAuctionBidDecimals(uint256 _auctionId) public view returns (uint256) {
+        if (s.auctions[_auctionId].bidDecimals != 0) {
+            return s.auctions[_auctionId].bidDecimals;
+        } else {
+            return s.collections[s.tokenMapping[_auctionId].contractAddress].bidDecimals;
+        }
+    }
+
+    function getAuctionStepMin(uint256 _auctionId) public view returns (uint256) {
+        if (s.auctions[_auctionId].stepMin != 0) {
+            return s.auctions[_auctionId].stepMin;
+        } else {
+            return s.collections[s.tokenMapping[_auctionId].contractAddress].stepMin;
+        }
+    }
+
+    function getAuctionIncMin(uint256 _auctionId) public view returns (uint256) {
+        if (s.auctions[_auctionId].incMin != 0) {
+            return s.auctions[_auctionId].incMin;
+        } else {
+            return s.collections[s.tokenMapping[_auctionId].contractAddress].incMin;
+        }
+    }
+
+    function getAuctionIncMax(uint256 _auctionId) public view returns (uint256) {
+        if (s.auctions[_auctionId].incMax != 0) {
+            return s.auctions[_auctionId].incMax;
+        } else {
+            return s.collections[s.tokenMapping[_auctionId].contractAddress].incMax;
+        }
+    }
+
+    function getAuctionBidMultiplier(uint256 _auctionId) public view returns (uint256) {
+        if (s.auctions[_auctionId].bidMultiplier != 0) {
+            return s.auctions[_auctionId].bidMultiplier;
+        } else {
+            return s.collections[s.tokenMapping[_auctionId].contractAddress].bidMultiplier;
+        }
+    }
+
+    function onERC721Received(
+        address, /* _operator */
+        address, /*  _from */
+        uint256, /*  _tokenId */
+        bytes calldata /* _data */
+    ) external pure returns (bytes4) {
+        return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
+    }
+
+    function onERC1155Received(
+        address, /* _operator */
+        address, /* _from */
+        uint256, /* _id */
+        uint256, /* _value */
+        bytes calldata /* _data */
+    ) external pure returns (bytes4) {
+        return bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"));
+    }
+
+    function onERC1155BatchReceived(
+        address, /* _operator */
+        address, /* _from */
+        uint256[] calldata, /* _ids */
+        uint256[] calldata, /* _values */
+        bytes calldata /* _data */
+    ) external pure returns (bytes4) {
+        return bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
+    }
+
+    /// @notice Calculating and setting how much payout a bidder will receive if outbid
+    /// @dev Only callable internally
+    function calculateIncentives(uint256 _auctionId, uint256 _newBidValue) internal view returns (uint256) {
+        uint256 bidDecimals = getAuctionBidDecimals(_auctionId);
+        uint256 bidIncMax = getAuctionIncMax(_auctionId);
+
+        //Init the baseline bid we need to perform against
+        uint256 baseBid = (s.auctions[_auctionId].highestBid * (bidDecimals + getAuctionStepMin(_auctionId))) / bidDecimals;
+
+        //If no bids are present, set a basebid value of 1 to prevent divide by 0 errors
+        if (baseBid == 0) {
+            baseBid = 1;
+        }
+
+        // Ratio of newBid compared to expected minBid
+        uint256 decimaledRatio = ((bidDecimals * getAuctionBidMultiplier(_auctionId) * (_newBidValue - baseBid)) / baseBid) +
+            getAuctionIncMin(_auctionId) *
+            bidDecimals;
+
+        if (decimaledRatio > (bidDecimals * bidIncMax)) {
+            decimaledRatio = bidDecimals * bidIncMax;
+        }
+
+        return (_newBidValue * decimaledRatio) / (bidDecimals * bidDecimals);
     }
 }

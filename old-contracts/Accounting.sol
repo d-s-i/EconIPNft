@@ -1,7 +1,7 @@
 //SPDLicensIdentifier: MIT
 pragma solidity ^0.8.6;
 
-import "./EconNFTERC721.sol";
+import "./EconNFT.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title Accounting contract for Economics Design.
@@ -21,7 +21,7 @@ contract Accounting {
     mapping(address => uint256) public numberOfBooksBought;
 
     // The EconNFT contract.
-    EconNFTERC721 public econNFT;
+    EconNFT public econNFT;
     // The USDC contract.
     IERC20 public usdc;
 
@@ -34,7 +34,7 @@ contract Accounting {
     constructor(uint256 _booksPerOrder, uint256 _bookPrice, address _econNFTAddress, address _usdcAddress) public {
         booksPerOrder = _booksPerOrder;
         bookPrice = _bookPrice;
-        econNFT = EconNFTERC721(_econNFTAddress);
+        econNFT = EconNFT(_econNFTAddress);
         usdc = IERC20(_usdcAddress);
         // change this into Economics DEsign address
         owner = msg.sender;

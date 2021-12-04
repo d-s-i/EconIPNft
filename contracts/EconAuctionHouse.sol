@@ -235,7 +235,6 @@ contract EconAuctionHouse is Ownable {
         uint256 _bidAmount,
         uint256 _highestBid
     ) external {
-        console.log("inside contract", s.collections[s.tokenMapping[_auctionId].contractAddress].biddingAllowed);
         require(s.collections[s.tokenMapping[_auctionId].contractAddress].biddingAllowed, "bid: bidding is currently not allowed");
 
         require(_bidAmount > 1, "bid: _bidAmount cannot be 0");
@@ -300,12 +299,66 @@ contract EconAuctionHouse is Ownable {
         }
     }
 
+    /// @notice Attribute a token to the winner of the auction and distribute the proceeds to the owner of this contract.
+    /// throw if bidding is disabled or if the auction is not finished.
+    /// @param _auctionId The auctionId of the auction to complete
+    function claim(uint256 _auctionId) public {
+        address _contractAddress = s.tokenMapping[_auctionId].contractAddress;
+        uint256 _tid = s.tokenMapping[_auctionId].tokenId;
+
+        require(s.collections[_contractAddress].biddingAllowed, "claim: Claiming is currently not allowed");
+        require(getAuctionEndTime(_auctionId) < block.timestamp, "claim: Auction has not yet ended");
+        require(s.auctionItemClaimed[_auctionId] == false, "claim: Item has already been claimed");
+
+        //Prevents re-entrancy
+        s.auctionItemClaimed[_auctionId] = true;
+
+        //Todo: Add in the various Aavegotchi addresses
+        uint256 _proceeds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].auctionDebt;
+
+        //Added to prevent revert
+        IERC20(s.erc20Currency).approve(address(this), _proceeds);
+
+        IERC20(s.erc20Currency).transferFrom(address(this), s.daoTreasury, _proceeds);
+
+        if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC721"))) {
+            //0x73ad2146
+            IERC721(_contractAddress).safeTransferFrom(address(this), s.auctions[_auctionId].highestBidder, _tid);
+        } else if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC1155"))) {
+            //0x973bb640
+            IERC1155(_contractAddress).safeTransferFrom(address(this), s.auctions[_auctionId].highestBidder, _tid, 1, "");
+            s.erc1155TokensUnderAuction[_contractAddress][_tid] = s.erc1155TokensUnderAuction[_contractAddress][_tid] - 1;
+        }
+
+        emit Auction_ItemClaimed(_auctionId);
+    }
+
+    function takeNFTBack(address _contractAddress, address _from, uint256 _id, uint256 _value) public onlyOwner {
+        IERC1155(_contractAddress).safeTransferFrom(_from, address(this), _id, _value, "");
+    }
+
     /// @notice Allow/disallow bidding and claiming for a whole token contract address.
     /// @param _contract The token contract the auctionned token belong to
     /// @param _value True if bidding/claiming should be allowed.
     function setBiddingAllowed(address _contract, bool _value) external onlyOwner {
         s.collections[_contract].biddingAllowed = _value;
         emit Contract_BiddingAllowed(_contract, _value);
+    }
+
+    function setErc20Currency(address _currency) external onlyOwner {
+        s.erc20Currency = _currency;
+    }
+
+    function setDaoTreasury(address _dao) external onlyOwner {
+        s.daoTreasury = _dao;
+    }
+
+    function getErc20Currency() external view returns (address) {
+        return s.erc20Currency;
+    }
+
+    function getDaoTreasury() external view returns(address) {
+        return s.daoTreasury;
     }
 
     function getAuctionInfo(uint256 _auctionId) external view returns (Auction memory auctionInfo_) {

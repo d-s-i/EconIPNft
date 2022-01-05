@@ -1,13 +1,34 @@
 import { ethers } from "hardhat";
 import { BigNumber, Contract } from "ethers";
 import { Address } from "cluster";
-import { Auction, EXPIRATION_DATE } from "./constants.test";
+import assert from "assert";
+import { Auction, EXPIRATION_DATE, ContractState } from "./constants.test";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 export async function endAuction(auctionEndTimestamp: BigNumber, duration: BigNumber) {
     const time = auctionEndTimestamp.add(duration.add(1));
     await ethers.provider.send("evm_setNextBlockTimestamp", [time.toNumber()]);
-  }
+}
+
+export async function changeBlockTimestamp(newTimestampInSeconds: number) {
+    await ethers.provider.send("evm_setNextBlockTimestamp", [newTimestampInSeconds]);
+}
+
+export async function goToExpirationDate(nbOfMonthNftExpire: number) {
+    const expirationTimestamp = getTimestampFromNbOfMonth(nbOfMonthNftExpire);
+    await ethers.provider.send("evm_setNextBlockTimestamp", [expirationTimestamp]);
+}
+
+export function displayAddress(contractName: string, contractAddress: string) {
+    console.log(`${contractName} address is: ${contractAddress}`);
+}
+
+export function assertAddressOk(testedAddress: string | undefined) {
+    assert.ok(
+        typeof(testedAddress) !== "undefined" && 
+        testedAddress !== ethers.constants.AddressZero
+    );
+}
   
 export function displayAuction(currentAuction: Auction) {
     const auctionnedNounsId: BigNumber = currentAuction[0];
@@ -25,7 +46,7 @@ export function displayAuction(currentAuction: Auction) {
     console.log(`Is auction settled ? : ${auctionnedSettled.toString()}`);
 }
 
-export async function deployAllBasicContracts(minterAddress: string) {
+export async function deployAllTokenContracts(minterAddress: string) {
     const EconNFT = await ethers.getContractFactory("EconNFT");
     const USDC = await ethers.getContractFactory("USDC");
     const WETH = await ethers.getContractFactory("WETH");
@@ -37,9 +58,53 @@ export async function deployAllBasicContracts(minterAddress: string) {
     return [econNFT, usdc, weth];
 }
 
-export async function deployAuctionHouse() {
+export async function distributeUsdc(
+    addresses: string[], 
+    amountPerAddress: number, 
+    usdcContract: { usdc: Contract, signer: SignerWithAddress }
+) {
+    const usdc = usdcContract.usdc.connect(usdcContract.signer);
+
+    const decimals = await usdc.decimals();
+    const amount = ethers.utils.parseUnits(amountPerAddress.toString(), decimals.toString());
+    addresses.forEach(async address => {
+        await usdc.transfer(address, amount);
+    });
+}
+
+export function getTimestampFromNbOfMonth(numberOfMonthForExpiration: number) {
+    const date = new Date();
+    const now = date.getTime();
+    const ONE_DAY = 86400;
+    const ONE_MONTH = 30 * ONE_DAY;
+    const expirationTimestamp = Math.round((now + (numberOfMonthForExpiration * ONE_MONTH)));
+
+    return expirationTimestamp;
+}
+
+export async function deployEconNft721(numberOfMonthForExpiration: number) {
+
+    const expirationTimestamp = getTimestampFromNbOfMonth(numberOfMonthForExpiration);
+
+    const EconNFT = await ethers.getContractFactory("EconNFTERC721");
+    const econNFT = await EconNFT.deploy(0, expirationTimestamp);
+
+    return econNFT;
+}
+
+export async function deployTokens() {
+    const Usdc = await ethers.getContractFactory("USDC");
+    const Weth = await ethers.getContractFactory("WETH");
+
+    const usdc = await Usdc.deploy("USDC", "USDC");
+    const weth = await Weth.deploy();
+
+    return [usdc, weth];
+}
+
+export async function deployAuctionHouse(econNFTAddress: string) {
     const EconAuctionHouse = await ethers.getContractFactory("EconAuctionHouse");
-    const econAuctionHouse = await EconAuctionHouse.deploy();
+    const econAuctionHouse = await EconAuctionHouse.deploy(econNFTAddress);
     return econAuctionHouse;
 }
 
@@ -49,50 +114,49 @@ export async function deployAuctionHouseUSDC() {
     return econAuctionHouseUSDC;
 }
 
-export async function bidOnAuctionWithEth (
-    _amount: number,
-    _econAuctionHouse: Contract, 
-    _signer: SignerWithAddress
-) {
-    const currentContractSigner = _econAuctionHouse.signer;
-    const currentAuction = await _econAuctionHouse.auction();
-    const auctionnedId = currentAuction[0];
-
-    if((await currentContractSigner.getAddress()).toString() !== _signer.address) {
-        _econAuctionHouse = _econAuctionHouse.connect(_signer);
-    }
-
-    await _econAuctionHouse.createBid(auctionnedId, { value: ethers.utils.parseEther(_amount.toString()), from: _signer.address });
+export async function sendErc721Nft(nftContract: ContractState, receiverAddress: string, tokenId: number) {
+    const contract = nftContract.contract.connect(nftContract.signer);
+    await contract.transferFrom(nftContract.signer.address, receiverAddress, tokenId);
 }
 
-export async function bidOnAuctionWithUSDC(
-    _amount: number,
-    _econAuctionHouseUSDC: Contract,
-    _usdc: Contract,
-    _signer: SignerWithAddress
+export async function mintErc721Tokens(numberOfNfts: number, _contract: Contract, _signer: SignerWithAddress) {
+
+    const nftContract = _contract.connect(_signer);
+
+    for(let i = 0; i < numberOfNfts; i++) {
+        await nftContract.mint();
+    }
+
+}
+
+export async function initializeAuctionHouse(usdcAddress: string, daoTreasuryAddress: string, auctionHouse: Contract) {
+    await auctionHouse.setErc20Currency(usdcAddress);
+    await auctionHouse.setDaoTreasury(daoTreasuryAddress);
+}
+
+export async function bidOnAuctionWithToken(
+    auctionArgs: { auctionedId: BigNumber, humanReadableAmount: number },
+    contracts: { econAuctionHouse: Contract, econNFT: Contract, token: Contract },
+    signers: { deployer: SignerWithAddress, buyer: SignerWithAddress }
 ) {
-
-    const currentAuctionContractSigner = _econAuctionHouseUSDC.signer;
-    const currentUSDCContractSigner = _usdc.signer;
-
-    if((await currentAuctionContractSigner.getAddress()).toString() !== _signer.address) {
-        _econAuctionHouseUSDC = _econAuctionHouseUSDC.connect(_signer);
-    }
-    if((await currentUSDCContractSigner.getAddress()).toString() !== _signer.address) {
-        _usdc = _usdc.connect(_signer);
+    const isBiddingAllowed = await contracts.econAuctionHouse.getBiddingAllowed(auctionArgs.auctionedId);
+    if(!isBiddingAllowed) {
+        let auctionContract = await contracts.econAuctionHouse.connect(signers.deployer);
+        await auctionContract.setBiddingAllowed(contracts.econNFT.address, true);
     }
 
-    const USDCAllowance = await _usdc.allowance(_signer.address, _econAuctionHouseUSDC.address);
-    const bidAmount = ethers.utils.parseUnits(_amount.toString(), "6");
+    const allowance = await contracts.token.allowance(signers.buyer.address, contracts.econAuctionHouse.address);
+    const tokenDecimals = await contracts.token.decimals();
 
-    if(USDCAllowance < bidAmount) {
-        await _usdc.approve(_econAuctionHouseUSDC.address, BigInt(2**255));
+    const buyAmount = ethers.utils.parseUnits(auctionArgs.humanReadableAmount.toString(), tokenDecimals.toString());
+    const tokenContract = contracts.token.connect(signers.buyer);
+    if(allowance.mul(tokenDecimals).lt(buyAmount)) {
+        await tokenContract.approve(contracts.econAuctionHouse.address, BigInt(2**255));
     }
 
-    const currentAuction = await _econAuctionHouseUSDC.auction();
-    const auctionnedId = currentAuction[0];
-
-    await _econAuctionHouseUSDC.createBid(auctionnedId, bidAmount);
+    const econAuctionHouse = await contracts.econAuctionHouse.connect(signers.buyer);
+    const highestBid = await econAuctionHouse.getAuctionHighestBid(auctionArgs.auctionedId);
+    await econAuctionHouse.bid(auctionArgs.auctionedId, buyAmount, highestBid);
 }
 
 export async function deployAccounting(

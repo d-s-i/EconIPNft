@@ -16,14 +16,10 @@ export type Auction = [
 
 type InitializeAuctionFacet = number[];
 
-// address _contract,
-// uint256 _startTime,
-// uint256 _endTime,
-// uint256 _hammerTimeDuration,
-// uint256 _bidDecimals,
-// uint256 _stepMin,
-// uint256 _incMin,
-// uint256 _incMax
+export interface ContractState {
+  contract: Contract,
+  signer: SignerWithAddress
+};
 
 export async function getAuctionArgs(signer: SignerWithAddress, _tokenContract: Contract): Promise<InitializeAuctionFacet> {
   const block = await signer.provider!.getBlock("latest");

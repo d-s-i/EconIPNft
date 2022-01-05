@@ -1,13 +1,13 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.6;
 
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ERC721 } from "./ERC721.sol";
+import "./interfaces/IEconNFTERC721.sol";
 import "base64-sol/base64.sol";
 
 /// @title Economics Design Property Right NFT.
 /// @notice Contract used to verify the ownership of the Economics Design book property rights.
-contract EconNFTERC721 is ERC721, Ownable {
+contract EconNFTERC721 is ERC721, IEconNFTERC721 {
 
     // expiration timestamp of the NFT, date after the owner won't be able to buy books anymore. 
     struct Seed {
@@ -28,6 +28,9 @@ contract EconNFTERC721 is ERC721, Ownable {
     // Expiration timestamp currently associated with each EconNFT.
     uint256 public currentExpirationTimestamp;
 
+    // Number of epoch passed, used for the auctionHouse
+    uint256 public numberOfPeriodPassed;
+
     // Constant used to translate a timestamp into a date for tokenURI().
     uint constant SECONDS_PER_DAY = 24 * 60 * 60;
     // Constant used to translate a timestamp into a date for tokenURI() as timestamps start from 01/01/1970.
@@ -43,9 +46,10 @@ contract EconNFTERC721 is ERC721, Ownable {
     /// @param _totalSupply maximum number of NFT that is going to be minted.
     /// @param _expirationTimestamp the date where the EconNFT will expire (timestamp in seconds).
     /// @dev Variables used to make the JPEG are set in order to construct an SVG later on. 
-    constructor(uint256 _totalSupply, uint256 _expirationTimestamp) ERC721("Econteric IP", "ECIP") Ownable() public {
+    constructor(uint256 _totalSupply, uint256 _expirationTimestamp) ERC721("Econteric IP", "ECIP") public {
         isMinterLocked = false;
         _currentEconNFTId = 0;
+        numberOfPeriodPassed = 0;
         currentExpirationTimestamp = _expirationTimestamp;
 
         maxNumberOfPath = 10;
@@ -57,13 +61,13 @@ contract EconNFTERC721 is ERC721, Ownable {
 
     /// @notice Restrict a function only when minter is not locked (i.e. isMinterLocked == false).
     modifier whenMinterNotLocked() {
-        require(!isMinterLocked, "Minter is locked");
+        require(!isMinterLocked, "EconNFT: Minter is locked");
         _;
     }
 
     /// @notice Restrict a function to be called only by the minter address.
     modifier onlyMinter() {
-        require(msg.sender == minter, "Sender is not the minter");
+        require(msg.sender == minter, "EconNFT: Sender is not the minter");
         _;
     }
 
@@ -246,134 +250,18 @@ contract EconNFTERC721 is ERC721, Ownable {
 
     /// @notice Change the expiration timestamp of the future NFTs about to get minted.
     /// @param _newExpirationTimestamp the new timestamp.
-    function setCurrentExpirationTimestamp(uint256 _newExpirationTimestamp) external onlyOwner {
+    function setCurrentExpirationTimestamp(uint256 _newExpirationTimestamp) external override onlyOwner {
         currentExpirationTimestamp = _newExpirationTimestamp;
+        numberOfPeriodPassed++;
+    }
+
+    /// @notice Used mainly for the auction house.
+    function getNumberOfPeriodPassed() public view override returns(uint256) {
+        return numberOfPeriodPassed;
+    }
+
+    /// @notice Used mainly for the auction house.
+    function getCurrentExpirationTimestamp() public view override returns(uint256) {
+        return currentExpirationTimestamp;
     }
 }
-
-
-// /// @title The Nouns ERC-721 token
-
-// pragma solidity ^0.8.6;
-
-// import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-// import { ERC721Checkpointable } from "./base/ERC721Checkpointable.sol";
-// import { ERC721 } from "./base/ERC721.sol";
-// import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-
-// contract EconNFT is IERC721, Ownable, ERC721Checkpointable {
-
-//     // expiration timestamp of the NFT, date after the owner won't be able to buy books anymore. 
-//     struct Seed {
-//         uint256 expirationTimestamp;
-//     }
-
-//     event NounCreated(uint256 indexed tokenId, Seed seed);
-
-//     event NounBurned(uint256 indexed tokenId);
-
-//     event MinterUpdated(address minter);
-
-//     event MinterLocked();
-
-//     // An address who has permissions to mint Nouns
-//     address public minter;
-
-//     // Whether the minter can be updated
-//     bool public isMinterLocked;
-
-//     // The noun seeds
-//     mapping(uint256 => Seed) public seeds;
-
-//     // The internal noun ID tracker
-//     uint256 private _currentEconNFTId;
-
-//     // Expiration timestamp currently associated with each EconNFT.
-//     uint256 public currentExpirationTimestamp;
-
-//     // Constant used to translate a timestamp into a date for tokenURI().
-//     uint constant SECONDS_PER_DAY = 24 * 60 * 60;
-//     // Constant used to translate a timestamp into a date for tokenURI() as timestamps start from 01/01/1970.
-//     int constant OFFSET19700101 = 2440588;
-
-//     /**
-//      * @notice Require that the minter has not been locked.
-//      */
-//     modifier whenMinterNotLocked() {
-//         require(!isMinterLocked, "Minter is locked");
-//         _;
-//     }
-
-//     /**
-//      * @notice Require that the sender is the minter.
-//      */
-//     modifier onlyMinter() {
-//         require(msg.sender == minter, "Sender is not the minter");
-//         _;
-//     }
-
-//     constructor(
-//         uint256 _expirationTimestamp
-//     ) ERC721("Econ NFT Property Rights", "EconNFT") Ownable() {
-//         currentExpirationTimestamp = _expirationTimestamp;
-//     }
-
-//     /**
-//      * @notice Mint a Noun to the minter, along with a possible nounders reward
-//      * Noun. Nounders reward Nouns are minted every 10 Nouns, starting at 0,
-//      * until 183 nounder Nouns have been minted (5 years w/ 24 hour auctions).
-//      * @dev Call _mintTo with the to address(es).
-//      */
-//     function mint() public onlyMinter returns (uint256) {
-//         return _mintTo(minter, _currentEconNFTId++);
-//     }
-
-//     /**
-//      * @notice Burn a noun.
-//      */
-//     function burn(uint256 econNFTId) public onlyMinter {
-//         _burn(econNFTId);
-//         emit NounBurned(econNFTId);
-//     }
-
-//     /**
-//      * @notice A distinct Uniform Resource Identifier (URI) for a given asset.
-//      * @dev See {IERC721Metadata-tokenURI}.
-//      */
-//     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-//         require(_exists(tokenId), "NounsToken: URI query for nonexistent token");
-//         return "work";
-//     }
-
-//     /**
-//      * @notice Set the token minter.
-//      * @dev Only callable by the owner when not locked.
-//      */
-//     function setMinter(address _minter) external onlyOwner whenMinterNotLocked {
-//         minter = _minter;
-
-//         emit MinterUpdated(_minter);
-//     }
-
-//     /**
-//      * @notice Lock the minter.
-//      * @dev This cannot be reversed and is only callable by the owner when not locked.
-//      */
-//     function lockMinter() external onlyOwner whenMinterNotLocked {
-//         isMinterLocked = true;
-
-//         emit MinterLocked();
-//     }
-
-//     /**
-//      * @notice Mint a Noun with `nounId` to the provided `to` address.
-//      */
-//     function _mintTo(address to, uint256 econNFTId) internal returns (uint256) {
-//         Seed memory seed = seeds[econNFTId] = Seed({ expirationTimestamp: currentExpirationTimestamp });
-
-//         _mint(owner(), to, econNFTId);
-//         emit NounCreated(econNFTId, seed);
-
-//         return econNFTId;
-//     }
-// }

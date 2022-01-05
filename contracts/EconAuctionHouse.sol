@@ -1,16 +1,12 @@
 pragma solidity ^0.8.0;
 
-// import "./interfaces/IGBM.sol";
-// import "./interfaces/IGBMInitiator.sol";
 import "./interfaces/IERC20.sol";
 import "./interfaces/IERC721.sol";
 import "./interfaces/IERC721TokenReceiver.sol";
 import "./interfaces/IERC1155.sol";
 import "./interfaces/IERC1155TokenReceiver.sol";
-// import "./libraries/EconAppStorage.sol";
+import "./interfaces/IEconNFTERC721.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-
-import "hardhat/console.sol";
 
 contract EconAuctionHouse is Ownable {
 
@@ -98,7 +94,14 @@ contract EconAuctionHouse is Ownable {
 
     AppStorage internal s;
 
-    constructor() Ownable() public {}    
+    address public econNFT;
+
+    // store the previousOwner to give funds back for a Re-auction
+    mapping(uint256 => address) public previousOwnerForReAuction;
+
+    constructor(address _econNFT) Ownable() public {
+        econNFT = _econNFT;
+    }
 
     /// @notice Register an auction contract default parameters for a GBM auction. To use to save gas
     /// @param _contract The token contract the auctionned token belong to
@@ -302,7 +305,11 @@ contract EconAuctionHouse is Ownable {
     /// @notice Attribute a token to the winner of the auction and distribute the proceeds to the owner of this contract.
     /// throw if bidding is disabled or if the auction is not finished.
     /// @param _auctionId The auctionId of the auction to complete
-    function claim(uint256 _auctionId) public {
+    function claimForFirstTime(uint256 _auctionId) public {
+        require(
+            IEconNFTERC721(econNFT).getNumberOfPeriodPassed() == 0, 
+            "EconAuctionHouse: Period to claim for the first time has passed"
+        );
         address _contractAddress = s.tokenMapping[_auctionId].contractAddress;
         uint256 _tid = s.tokenMapping[_auctionId].tokenId;
 
@@ -333,8 +340,69 @@ contract EconAuctionHouse is Ownable {
         emit Auction_ItemClaimed(_auctionId);
     }
 
-    function takeNFTBack(address _contractAddress, address _from, uint256 _id, uint256 _value) public onlyOwner {
-        IERC1155(_contractAddress).safeTransferFrom(_from, address(this), _id, _value, "");
+    /// @notice Attribute a token to the winner of the auction and distribute the proceeds to the owner of this contract.
+    /// throw if bidding is disabled or if the auction is not finished.
+    /// @param _auctionId The auctionId of the auction to complete
+    function claimAfterReAuctionned(uint256 _auctionId) public {
+        require(
+            IEconNFTERC721(econNFT).getNumberOfPeriodPassed() >= 1, 
+            "EconAuctionHouse: NFT hasn't been re-auctionned yet"
+        );
+        address _contractAddress = s.tokenMapping[_auctionId].contractAddress;
+        uint256 _tid = s.tokenMapping[_auctionId].tokenId;
+
+        require(s.collections[_contractAddress].biddingAllowed, "claim: Claiming is currently not allowed");
+        require(getAuctionEndTime(_auctionId) < block.timestamp, "claim: Auction has not yet ended");
+        require(s.auctionItemClaimed[_auctionId] == false, "claim: Item has already been claimed");
+
+        //Prevents re-entrancy
+        s.auctionItemClaimed[_auctionId] = true;
+
+        //Todo: Add in the various Aavegotchi addresses
+        uint256 _proceeds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].auctionDebt;
+
+        //Added to prevent revert
+        IERC20(s.erc20Currency).approve(address(this), _proceeds);
+
+        IERC20(s.erc20Currency).transferFrom(address(this), previousOwnerForReAuction[_tid], (_proceeds * 7000) / 100);
+
+        IERC20(s.erc20Currency).transferFrom(address(this), s.daoTreasury, (_proceeds * 3000) / 100);
+
+        if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC721"))) {
+            //0x73ad2146
+            IERC721(_contractAddress).safeTransferFrom(address(this), s.auctions[_auctionId].highestBidder, _tid);
+        } else if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC1155"))) {
+            //0x973bb640
+            IERC1155(_contractAddress).safeTransferFrom(address(this), s.auctions[_auctionId].highestBidder, _tid, 1, "");
+            s.erc1155TokensUnderAuction[_contractAddress][_tid] = s.erc1155TokensUnderAuction[_contractAddress][_tid] - 1;
+        }
+
+        emit Auction_ItemClaimed(_auctionId);
+    }
+
+    function takeERC721Back(address _contractAddress, address _from, uint256 _id) external onlyOwner {
+        require(block.timestamp >= IEconNFTERC721(econNFT).getCurrentExpirationTimestamp(), "EconAuctionHouse: Period has not passed yet");
+        previousOwnerForReAuction[_id] = _from;
+        IERC721(_contractAddress).safeTransferFrom(_from, address(this), _id);
+    }
+
+    function resetAuctionState(uint256 _auctionId) public onlyOwner {
+        s.auctions[_auctionId].owner = address(0);
+        s.auctions[_auctionId].highestBidder = address(0);
+        s.auctions[_auctionId].highestBid = 0;
+        s.auctions[_auctionId].auctionDebt = 0;
+        s.auctions[_auctionId].dueIncentives = 0;
+        s.auctions[_auctionId].contractAddress = address(0);
+        s.auctions[_auctionId].startTime = 0;
+        s.auctions[_auctionId].endTime = 0;
+        s.auctions[_auctionId].hammerTimeDuration = 0;
+        s.auctions[_auctionId].bidDecimals = 0;
+        s.auctions[_auctionId].stepMin = 0;
+        s.auctions[_auctionId].incMin = 0;
+        s.auctions[_auctionId].incMax = 0;
+        s.auctions[_auctionId].bidMultiplier = 0;
+        s.auctions[_auctionId].biddingAllowed = false;
+        s.auctionItemClaimed[_auctionId] = false;
     }
 
     /// @notice Allow/disallow bidding and claiming for a whole token contract address.

@@ -77,25 +77,25 @@ contract EconAuctionHouse is Ownable {
         bool biddingAllowed; // Allow to start/pause ongoing auctions
     }
 
-    struct AppStorage {
-        address pixelcraft;
-        address playerRewards;
-        address daoTreasury;
-        //Contract address storing the ERC20 currency used in auctions
-        address erc20Currency;
-        mapping(uint256 => TokenRepresentation) tokenMapping; //_auctionId => token_primaryKey
-        mapping(address => mapping(uint256 => mapping(uint256 => uint256))) auctionMapping; // contractAddress => tokenId => TokenIndex => _auctionId
-        //var storing individual auction settings. if != null, they take priority over collection settings
-        mapping(uint256 => Auction) auctions; //_auctionId => auctions
-        mapping(uint256 => bool) auctionItemClaimed;
-        //var storing contract wide settings. Those are used if no auctionId specific parameters is initialized
-        mapping(address => Collection) collections; //tokencontract => collections
-        mapping(address => mapping(uint256 => uint256)) erc1155TokensIndex; //Contract => TokenID => Amount being auctionned
-        mapping(address => mapping(uint256 => uint256)) erc1155TokensUnderAuction; //Contract => TokenID => Amount being auctionned
-        bytes backendPubKey;
-    }
+    address internal daoTreasury;
+    // Contract address storing the ERC20 currency used in auctions
+    address internal erc20Currency;
 
-    AppStorage internal s;
+    // tokencontract => collections
+    mapping(address => Collection) internal collections; 
+    // contractAddress => tokenId => TokenIndex => _auctionId
+    mapping(address => mapping(uint256 => mapping(uint256 => uint256))) internal auctionMapping; 
+    //_auctionId => auctions
+    mapping(uint256 => Auction) auctions; 
+    //_auctionId => token_primaryKey
+    mapping(uint256 => TokenRepresentation) tokenMapping; 
+    // Contract => TokenID => Amount being auctionned
+    mapping(address => mapping(uint256 => uint256)) erc1155TokensIndex; 
+    //Contract => TokenID => Amount being auctionned
+    mapping(address => mapping(uint256 => uint256)) erc1155TokensUnderAuction; 
+
+    mapping(uint256 => bool) auctionItemClaimed;
+
 
     address public econNFT;
 
@@ -118,13 +118,13 @@ contract EconAuctionHouse is Ownable {
         uint256 _incMin,
         uint256 _incMax
     ) public onlyOwner {
-        s.collections[_contract].startTime = _startTime;
-        s.collections[_contract].endTime = _endTime;
-        s.collections[_contract].hammerTimeDuration = _hammerTimeDuration;
-        s.collections[_contract].bidDecimals = _bidDecimals;
-        s.collections[_contract].stepMin = _stepMin;
-        s.collections[_contract].incMin = _incMin;
-        s.collections[_contract].incMax = _incMax;
+        collections[_contract].startTime = _startTime;
+        collections[_contract].endTime = _endTime;
+        collections[_contract].hammerTimeDuration = _hammerTimeDuration;
+        collections[_contract].bidDecimals = _bidDecimals;
+        collections[_contract].stepMin = _stepMin;
+        collections[_contract].incMin = _incMin;
+        collections[_contract].incMax = _incMax;
     }
 
     /// @notice Register an auction token and emit the relevant AuctionInitialized & AuctionStartTimeUpdated events
@@ -161,10 +161,10 @@ contract EconAuctionHouse is Ownable {
         bool _rewrite
     ) internal {
         if (!_rewrite) {
-            _1155Index = s.erc1155TokensIndex[_tokenContract][_tokenId]; //_1155Index was 0 if creating new auctions
-            require(s.auctionMapping[_tokenContract][_tokenId][_1155Index] == 0, "The auction aleady exist for the specified token");
+            _1155Index = erc1155TokensIndex[_tokenContract][_tokenId]; //_1155Index was 0 if creating new auctions
+            require(auctionMapping[_tokenContract][_tokenId][_1155Index] == 0, "The auction aleady exist for the specified token");
         } else {
-            require(s.auctionMapping[_tokenContract][_tokenId][_1155Index] != 0, "The auction doesn't exist yet for the specified token");
+            require(auctionMapping[_tokenContract][_tokenId][_1155Index] != 0, "The auction doesn't exist yet for the specified token");
         }
 
         //Checking the kind of token being registered
@@ -188,41 +188,41 @@ contract EconAuctionHouse is Ownable {
             );
 
             _auctionId = uint256(keccak256(abi.encodePacked(_tokenContract, _tokenId, _tokenKind)));
-            s.auctionMapping[_tokenContract][_tokenId][0] = _auctionId;
+            auctionMapping[_tokenContract][_tokenId][0] = _auctionId;
         } else {
             require(
                 msg.sender == Ownable(_tokenContract).owner() ||
-                    s.erc1155TokensUnderAuction[_tokenContract][_tokenId] < IERC1155(_tokenContract).balanceOf(address(this), _tokenId),
+                    erc1155TokensUnderAuction[_tokenContract][_tokenId] < IERC1155(_tokenContract).balanceOf(address(this), _tokenId),
                 "registerAnAuctionToken:  the specified ERC-1155 token cannot be auctionned"
             );
 
             require(
-                _1155Index <= s.erc1155TokensIndex[_tokenContract][_tokenId],
+                _1155Index <= erc1155TokensIndex[_tokenContract][_tokenId],
                 "The specified _1155Index have not been reached yet for this token"
             );
 
             _auctionId = uint256(keccak256(abi.encodePacked(_tokenContract, _tokenId, _tokenKind, _1155Index)));
 
             if (!_rewrite) {
-                s.erc1155TokensIndex[_tokenContract][_tokenId] = s.erc1155TokensIndex[_tokenContract][_tokenId] + 1;
-                s.erc1155TokensUnderAuction[_tokenContract][_tokenId] = s.erc1155TokensUnderAuction[_tokenContract][_tokenId] + 1;
+                erc1155TokensIndex[_tokenContract][_tokenId] = erc1155TokensIndex[_tokenContract][_tokenId] + 1;
+                erc1155TokensUnderAuction[_tokenContract][_tokenId] = erc1155TokensUnderAuction[_tokenContract][_tokenId] + 1;
             }
 
-            s.auctionMapping[_tokenContract][_tokenId][_1155Index] = _auctionId;
+            auctionMapping[_tokenContract][_tokenId][_1155Index] = _auctionId;
         }
 
-        s.tokenMapping[_auctionId] = newAuction;
+        tokenMapping[_auctionId] = newAuction;
 
         if (_useInitiator) {
-            s.auctions[_auctionId].owner = owner();
-            s.auctions[_auctionId].startTime = s.collections[_tokenContract].startTime;
-            s.auctions[_auctionId].endTime = s.collections[_tokenContract].endTime;
-            s.auctions[_auctionId].hammerTimeDuration = s.collections[_tokenContract].hammerTimeDuration;
-            s.auctions[_auctionId].bidDecimals = s.collections[_tokenContract].bidDecimals;
-            s.auctions[_auctionId].stepMin = s.collections[_tokenContract].stepMin;
-            s.auctions[_auctionId].incMin = s.collections[_tokenContract].incMin;
-            s.auctions[_auctionId].incMax = s.collections[_tokenContract].incMax;
-            s.auctions[_auctionId].bidMultiplier = s.collections[_tokenContract].bidMultiplier;
+            auctions[_auctionId].owner = owner();
+            auctions[_auctionId].startTime = collections[_tokenContract].startTime;
+            auctions[_auctionId].endTime = collections[_tokenContract].endTime;
+            auctions[_auctionId].hammerTimeDuration = collections[_tokenContract].hammerTimeDuration;
+            auctions[_auctionId].bidDecimals = collections[_tokenContract].bidDecimals;
+            auctions[_auctionId].stepMin = collections[_tokenContract].stepMin;
+            auctions[_auctionId].incMin = collections[_tokenContract].incMin;
+            auctions[_auctionId].incMax = collections[_tokenContract].incMax;
+            auctions[_auctionId].bidMultiplier = collections[_tokenContract].bidMultiplier;
         }
 
         //Event emitted when an auction is being setup
@@ -241,11 +241,11 @@ contract EconAuctionHouse is Ownable {
         uint256 _bidAmount,
         uint256 _highestBid
     ) external {
-        require(s.collections[s.tokenMapping[_auctionId].contractAddress].biddingAllowed, "bid: bidding is currently not allowed");
+        require(collections[tokenMapping[_auctionId].contractAddress].biddingAllowed, "bid: bidding is currently not allowed");
 
         require(_bidAmount > 1, "bid: _bidAmount cannot be 0");
 
-        require(_highestBid == s.auctions[_auctionId].highestBid, "bid: current highest bid does not match the submitted transaction _highestBid");
+        require(_highestBid == auctions[_auctionId].highestBid, "bid: current highest bid does not match the submitted transaction _highestBid");
 
         //An auction start time of 0 also indicate the auction has not been created at all
 
@@ -263,18 +263,18 @@ contract EconAuctionHouse is Ownable {
         );
 
         //Transfer the money of the bidder to the GBM smart contract
-        IERC20(s.erc20Currency).transferFrom(msg.sender, address(this), _bidAmount);
+        IERC20(erc20Currency).transferFrom(msg.sender, address(this), _bidAmount);
 
         //Extend the duration time of the auction if we are close to the end
         if (getAuctionEndTime(_auctionId) < block.timestamp + getAuctionHammerTimeDuration(_auctionId)) {
-            s.auctions[_auctionId].endTime = block.timestamp + getAuctionHammerTimeDuration(_auctionId);
-            emit Auction_EndTimeUpdated(_auctionId, s.auctions[_auctionId].endTime);
+            auctions[_auctionId].endTime = block.timestamp + getAuctionHammerTimeDuration(_auctionId);
+            emit Auction_EndTimeUpdated(_auctionId, auctions[_auctionId].endTime);
         }
 
         // Saving incentives for later sending
-        uint256 duePay = s.auctions[_auctionId].dueIncentives;
-        address previousHighestBidder = s.auctions[_auctionId].highestBidder;
-        uint256 previousHighestBid = s.auctions[_auctionId].highestBid;
+        uint256 duePay = auctions[_auctionId].dueIncentives;
+        address previousHighestBidder = auctions[_auctionId].highestBidder;
+        uint256 previousHighestBid = auctions[_auctionId].highestBid;
 
         // Emitting the event sequence
         if (previousHighestBidder != address(0)) {
@@ -282,27 +282,27 @@ contract EconAuctionHouse is Ownable {
         }
 
         if (duePay != 0) {
-            s.auctions[_auctionId].auctionDebt = s.auctions[_auctionId].auctionDebt + duePay;
+            auctions[_auctionId].auctionDebt = auctions[_auctionId].auctionDebt + duePay;
             emit Auction_IncentivePaid(_auctionId, previousHighestBidder, duePay);
         }
 
         emit Auction_BidPlaced(_auctionId, msg.sender, _bidAmount);
 
         // Calculating incentives for the new bidder
-        s.auctions[_auctionId].dueIncentives = calculateIncentives(_auctionId, _bidAmount);
+        auctions[_auctionId].dueIncentives = calculateIncentives(_auctionId, _bidAmount);
 
         //Setting the new bid/bidder as the highest bid/bidder
-        s.auctions[_auctionId].highestBidder = msg.sender;
-        s.auctions[_auctionId].secondHighestBid = s.auctions[_auctionId].highestBid;
-        s.auctions[_auctionId].highestBid = _bidAmount;
+        auctions[_auctionId].highestBidder = msg.sender;
+        auctions[_auctionId].secondHighestBid = auctions[_auctionId].highestBid;
+        auctions[_auctionId].highestBid = _bidAmount;
 
         if ((previousHighestBid + duePay) != 0) {
             //Refunding the previous bid as well as sending the incentives
 
             //Added to prevent revert
-            IERC20(s.erc20Currency).approve(address(this), (previousHighestBid + duePay));
+            IERC20(erc20Currency).approve(address(this), (previousHighestBid + duePay));
 
-            IERC20(s.erc20Currency).transferFrom(address(this), previousHighestBidder, (previousHighestBid + duePay));
+            IERC20(erc20Currency).transferFrom(address(this), previousHighestBidder, (previousHighestBid + duePay));
         }
     }
 
@@ -314,41 +314,41 @@ contract EconAuctionHouse is Ownable {
             IEconNFTERC721(econNFT).getNumberOfPeriodPassed() == 0, 
             "EconAuctionHouse : Period to claim for the first time has passed"
         );
-        address _contractAddress = s.tokenMapping[_auctionId].contractAddress;
-        uint256 _tid = s.tokenMapping[_auctionId].tokenId;
+        address _contractAddress = tokenMapping[_auctionId].contractAddress;
+        uint256 _tid = tokenMapping[_auctionId].tokenId;
 
-        require(s.collections[_contractAddress].biddingAllowed, "claim: Claiming is currently not allowed");
+        require(collections[_contractAddress].biddingAllowed, "claim: Claiming is currently not allowed");
         require(getAuctionEndTime(_auctionId) < block.timestamp, "claim: Auction has not yet ended");
-        require(s.auctionItemClaimed[_auctionId] == false, "claim: Item has already been claimed");
+        require(auctionItemClaimed[_auctionId] == false, "claim: Item has already been claimed");
 
         //Prevents re-entrancy
-        s.auctionItemClaimed[_auctionId] = true;
+        auctionItemClaimed[_auctionId] = true;
 
         uint256 _proceeds;
         uint256 remainingFunds;
-        if(s.auctions[_auctionId].secondHighestBid == 0) {
-            _proceeds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].auctionDebt;
+        if(auctions[_auctionId].secondHighestBid == 0) {
+            _proceeds = auctions[_auctionId].highestBid - auctions[_auctionId].auctionDebt;
         } else {
-            _proceeds = s.auctions[_auctionId].secondHighestBid - s.auctions[_auctionId].auctionDebt;
-            remainingFunds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].secondHighestBid;
+            _proceeds = auctions[_auctionId].secondHighestBid - auctions[_auctionId].auctionDebt;
+            remainingFunds = auctions[_auctionId].highestBid - auctions[_auctionId].secondHighestBid;
         }
 
         // Added to prevent revert
-        IERC20(s.erc20Currency).approve(address(this), 2**256 - 1);
+        IERC20(erc20Currency).approve(address(this), 2**256 - 1);
 
-        IERC20(s.erc20Currency).transferFrom(address(this), s.daoTreasury, _proceeds);
+        IERC20(erc20Currency).transferFrom(address(this), daoTreasury, _proceeds);
 
         if(remainingFunds > 0) {
-            IERC20(s.erc20Currency).transferFrom(address(this), s.auctions[_auctionId].highestBidder, remainingFunds);
+            IERC20(erc20Currency).transferFrom(address(this), auctions[_auctionId].highestBidder, remainingFunds);
         }
 
-        if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC721"))) {
+        if (tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC721"))) {
             //0x73ad2146
-            IERC721(_contractAddress).safeTransferFrom(address(this), s.auctions[_auctionId].highestBidder, _tid);
-        } else if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC1155"))) {
+            IERC721(_contractAddress).safeTransferFrom(address(this), auctions[_auctionId].highestBidder, _tid);
+        } else if (tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC1155"))) {
             //0x973bb640
-            IERC1155(_contractAddress).safeTransferFrom(address(this), s.auctions[_auctionId].highestBidder, _tid, 1, "");
-            s.erc1155TokensUnderAuction[_contractAddress][_tid] = s.erc1155TokensUnderAuction[_contractAddress][_tid] - 1;
+            IERC1155(_contractAddress).safeTransferFrom(address(this), auctions[_auctionId].highestBidder, _tid, 1, "");
+            erc1155TokensUnderAuction[_contractAddress][_tid] = erc1155TokensUnderAuction[_contractAddress][_tid] - 1;
         }
 
         emit Auction_ItemClaimed(_auctionId);
@@ -362,43 +362,43 @@ contract EconAuctionHouse is Ownable {
             IEconNFTERC721(econNFT).getNumberOfPeriodPassed() >= 1, 
             "EconAuctionHouse: NFT hasn't been re-auctionned yet"
         );
-        address _contractAddress = s.tokenMapping[_auctionId].contractAddress;
-        uint256 _tid = s.tokenMapping[_auctionId].tokenId;
+        address _contractAddress = tokenMapping[_auctionId].contractAddress;
+        uint256 _tid = tokenMapping[_auctionId].tokenId;
 
-        require(s.collections[_contractAddress].biddingAllowed, "claim: Claiming is currently not allowed");
+        require(collections[_contractAddress].biddingAllowed, "claim: Claiming is currently not allowed");
         require(getAuctionEndTime(_auctionId) < block.timestamp, "claim: Auction has not yet ended");
-        require(s.auctionItemClaimed[_auctionId] == false, "claim: Item has already been claimed");
+        require(auctionItemClaimed[_auctionId] == false, "claim: Item has already been claimed");
 
         //Prevents re-entrancy
-        s.auctionItemClaimed[_auctionId] = true;
+        auctionItemClaimed[_auctionId] = true;
 
         uint256 _proceeds;
         uint256 remainingFunds;
-        if(s.auctions[_auctionId].secondHighestBid == 0) {
-            _proceeds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].auctionDebt;
+        if(auctions[_auctionId].secondHighestBid == 0) {
+            _proceeds = auctions[_auctionId].highestBid - auctions[_auctionId].auctionDebt;
         } else {
-            _proceeds = s.auctions[_auctionId].secondHighestBid - s.auctions[_auctionId].auctionDebt;
-            remainingFunds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].secondHighestBid;
+            _proceeds = auctions[_auctionId].secondHighestBid - auctions[_auctionId].auctionDebt;
+            remainingFunds = auctions[_auctionId].highestBid - auctions[_auctionId].secondHighestBid;
         }
 
         //Added to prevent revert
-        IERC20(s.erc20Currency).approve(address(this), 2**256 - 1);
+        IERC20(erc20Currency).approve(address(this), 2**256 - 1);
 
-        IERC20(s.erc20Currency).transferFrom(address(this), previousOwnerForReAuction[_tid], (_proceeds * 7000) / 10000);
+        IERC20(erc20Currency).transferFrom(address(this), previousOwnerForReAuction[_tid], (_proceeds * 7000) / 10000);
 
-        IERC20(s.erc20Currency).transferFrom(address(this), s.daoTreasury, (_proceeds * 3000) / 10000);
+        IERC20(erc20Currency).transferFrom(address(this), daoTreasury, (_proceeds * 3000) / 10000);
 
         if(remainingFunds > 0 ) {
-            IERC20(s.erc20Currency).transferFrom(address(this), s.auctions[_auctionId].highestBidder, remainingFunds);
+            IERC20(erc20Currency).transferFrom(address(this), auctions[_auctionId].highestBidder, remainingFunds);
         }
 
-        if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC721"))) {
+        if (tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC721"))) {
             //0x73ad2146
-            IERC721(_contractAddress).safeTransferFrom(address(this), s.auctions[_auctionId].highestBidder, _tid);
-        } else if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC1155"))) {
+            IERC721(_contractAddress).safeTransferFrom(address(this), auctions[_auctionId].highestBidder, _tid);
+        } else if (tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC1155"))) {
             //0x973bb640
-            IERC1155(_contractAddress).safeTransferFrom(address(this), s.auctions[_auctionId].highestBidder, _tid, 1, "");
-            s.erc1155TokensUnderAuction[_contractAddress][_tid] = s.erc1155TokensUnderAuction[_contractAddress][_tid] - 1;
+            IERC1155(_contractAddress).safeTransferFrom(address(this), auctions[_auctionId].highestBidder, _tid, 1, "");
+            erc1155TokensUnderAuction[_contractAddress][_tid] = erc1155TokensUnderAuction[_contractAddress][_tid] - 1;
         }
 
         emit Auction_ItemClaimed(_auctionId);
@@ -412,81 +412,81 @@ contract EconAuctionHouse is Ownable {
 
     function resetAuctionState(uint256 _auctionId, address _nftContract) public onlyOwner {
         registerAnAuctionContract(_nftContract, 0, 0, 0, 0, 0, 0, 0);
-        s.auctions[_auctionId].owner = address(0);
-        s.auctions[_auctionId].highestBidder = address(0);
-        s.auctions[_auctionId].highestBid = 0;
-        s.auctions[_auctionId].auctionDebt = 0;
-        s.auctions[_auctionId].dueIncentives = 0;
-        s.auctions[_auctionId].contractAddress = address(0);
-        s.auctions[_auctionId].startTime = 0;
-        s.auctions[_auctionId].endTime = 0;
-        s.auctions[_auctionId].hammerTimeDuration = 0;
-        s.auctions[_auctionId].bidDecimals = 0;
-        s.auctions[_auctionId].stepMin = 0;
-        s.auctions[_auctionId].incMin = 0;
-        s.auctions[_auctionId].incMax = 0;
-        s.auctions[_auctionId].bidMultiplier = 0;
-        s.auctions[_auctionId].biddingAllowed = false;
-        s.auctionItemClaimed[_auctionId] = false;
-        s.collections[_nftContract].biddingAllowed = false;
+        auctions[_auctionId].owner = address(0);
+        auctions[_auctionId].highestBidder = address(0);
+        auctions[_auctionId].highestBid = 0;
+        auctions[_auctionId].auctionDebt = 0;
+        auctions[_auctionId].dueIncentives = 0;
+        auctions[_auctionId].contractAddress = address(0);
+        auctions[_auctionId].startTime = 0;
+        auctions[_auctionId].endTime = 0;
+        auctions[_auctionId].hammerTimeDuration = 0;
+        auctions[_auctionId].bidDecimals = 0;
+        auctions[_auctionId].stepMin = 0;
+        auctions[_auctionId].incMin = 0;
+        auctions[_auctionId].incMax = 0;
+        auctions[_auctionId].bidMultiplier = 0;
+        auctions[_auctionId].biddingAllowed = false;
+        auctionItemClaimed[_auctionId] = false;
+        collections[_nftContract].biddingAllowed = false;
     }
 
     /// @notice Allow/disallow bidding and claiming for a whole token contract address.
     /// @param _contract The token contract the auctionned token belong to
     /// @param _value True if bidding/claiming should be allowed.
     function setBiddingAllowed(address _contract, bool _value) external onlyOwner {
-        s.collections[_contract].biddingAllowed = _value;
+        collections[_contract].biddingAllowed = _value;
         emit Contract_BiddingAllowed(_contract, _value);
     }
 
     function setErc20Currency(address _currency) external onlyOwner {
-        s.erc20Currency = _currency;
+        erc20Currency = _currency;
     }
 
     function setDaoTreasury(address _dao) external onlyOwner {
-        s.daoTreasury = _dao;
+        daoTreasury = _dao;
     }
 
     function getErc20Currency() external view returns (address) {
-        return s.erc20Currency;
+        return erc20Currency;
     }
 
     function getDaoTreasury() external view returns(address) {
-        return s.daoTreasury;
+        return daoTreasury;
     }
 
     function getAuctionInfo(uint256 _auctionId) external view returns (Auction memory auctionInfo_) {
-        auctionInfo_ = s.auctions[_auctionId];
-        auctionInfo_.contractAddress = s.tokenMapping[_auctionId].contractAddress;
-        auctionInfo_.biddingAllowed = s.collections[s.tokenMapping[_auctionId].contractAddress].biddingAllowed;
+        auctionInfo_ = auctions[_auctionId];
+        auctionInfo_.contractAddress = tokenMapping[_auctionId].contractAddress;
+        auctionInfo_.biddingAllowed = collections[tokenMapping[_auctionId].contractAddress].biddingAllowed;
     }
 
     function getAuctionHighestBidder(uint256 _auctionId) external view returns (address) {
-        return s.auctions[_auctionId].highestBidder;
+        return auctions[_auctionId].highestBidder;
     }
 
     function getAuctionHighestBid(uint256 _auctionId) external view returns (uint256) {
-        return s.auctions[_auctionId].highestBid;
+        return auctions[_auctionId].highestBid;
     }
 
     function getAuctionDebt(uint256 _auctionId) external view returns (uint256) {
-        return s.auctions[_auctionId].auctionDebt;
+        return auctions[_auctionId].auctionDebt;
     }
 
     function getAuctionDueIncentives(uint256 _auctionId) external view returns (uint256) {
-        return s.auctions[_auctionId].dueIncentives;
+        return auctions[_auctionId].dueIncentives;
     }
 
     function getAuctionID(address _contract, uint256 _tokenID) external view returns (uint256) {
-        return s.auctionMapping[_contract][_tokenID][0];
+        return auctionMapping[_contract][_tokenID][0];
     }
 
     function getContractFromId(uint256 _auctionId) public view returns(address) {
-        return(s.tokenMapping[_auctionId].contractAddress);
+        return(tokenMapping[_auctionId].contractAddress);
     }
 
     function getBiddingAllowed(uint256 _auctionId) public view returns(bool) {
-        return(s.collections[s.tokenMapping[_auctionId].contractAddress].biddingAllowed);
+        return(collections[tokenMapping[_auctionId].contractAddress].biddingAllowed);
     }
 
     // function getAuctionID(
@@ -498,78 +498,78 @@ contract EconAuctionHouse is Ownable {
     // }
 
     function getTokenKind(uint256 _auctionId) external view returns (bytes4) {
-        return s.tokenMapping[_auctionId].tokenKind;
+        return tokenMapping[_auctionId].tokenKind;
     }
 
     function getTokenId(uint256 _auctionId) external view returns (uint256) {
-        return s.tokenMapping[_auctionId].tokenId;
+        return tokenMapping[_auctionId].tokenId;
     }
 
     function getContractAddress(uint256 _auctionId) external view returns (address) {
-        return s.tokenMapping[_auctionId].contractAddress;
+        return tokenMapping[_auctionId].contractAddress;
     }
 
     function getAuctionStartTime(uint256 _auctionId) public view returns (uint256) {
-        if (s.auctions[_auctionId].startTime != 0) {
-            return s.auctions[_auctionId].startTime;
+        if (auctions[_auctionId].startTime != 0) {
+            return auctions[_auctionId].startTime;
         } else {
-            return s.collections[s.tokenMapping[_auctionId].contractAddress].startTime;
+            return collections[tokenMapping[_auctionId].contractAddress].startTime;
         }
     }
 
     function getAuctionEndTime(uint256 _auctionId) public view returns (uint256) {
-        if (s.auctions[_auctionId].endTime != 0) {
-            return s.auctions[_auctionId].endTime;
+        if (auctions[_auctionId].endTime != 0) {
+            return auctions[_auctionId].endTime;
         } else {
-            return s.collections[s.tokenMapping[_auctionId].contractAddress].endTime;
+            return collections[tokenMapping[_auctionId].contractAddress].endTime;
         }
     }
 
     function getAuctionHammerTimeDuration(uint256 _auctionId) public view returns (uint256) {
-        if (s.auctions[_auctionId].hammerTimeDuration != 0) {
-            return s.auctions[_auctionId].hammerTimeDuration;
+        if (auctions[_auctionId].hammerTimeDuration != 0) {
+            return auctions[_auctionId].hammerTimeDuration;
         } else {
-            return s.collections[s.tokenMapping[_auctionId].contractAddress].hammerTimeDuration;
+            return collections[tokenMapping[_auctionId].contractAddress].hammerTimeDuration;
         }
     }
 
     function getAuctionBidDecimals(uint256 _auctionId) public view returns (uint256) {
-        if (s.auctions[_auctionId].bidDecimals != 0) {
-            return s.auctions[_auctionId].bidDecimals;
+        if (auctions[_auctionId].bidDecimals != 0) {
+            return auctions[_auctionId].bidDecimals;
         } else {
-            return s.collections[s.tokenMapping[_auctionId].contractAddress].bidDecimals;
+            return collections[tokenMapping[_auctionId].contractAddress].bidDecimals;
         }
     }
 
     function getAuctionStepMin(uint256 _auctionId) public view returns (uint256) {
-        if (s.auctions[_auctionId].stepMin != 0) {
-            return s.auctions[_auctionId].stepMin;
+        if (auctions[_auctionId].stepMin != 0) {
+            return auctions[_auctionId].stepMin;
         } else {
-            return s.collections[s.tokenMapping[_auctionId].contractAddress].stepMin;
+            return collections[tokenMapping[_auctionId].contractAddress].stepMin;
         }
     }
 
     function getAuctionIncMin(uint256 _auctionId) public view returns (uint256) {
-        if (s.auctions[_auctionId].incMin != 0) {
-            return s.auctions[_auctionId].incMin;
+        if (auctions[_auctionId].incMin != 0) {
+            return auctions[_auctionId].incMin;
         } else {
-            return s.collections[s.tokenMapping[_auctionId].contractAddress].incMin;
+            return collections[tokenMapping[_auctionId].contractAddress].incMin;
         }
     }
 
     function getAuctionIncMax(uint256 _auctionId) public view returns (uint256) {
-        if (s.auctions[_auctionId].incMax != 0) {
-            return s.auctions[_auctionId].incMax;
+        if (auctions[_auctionId].incMax != 0) {
+            return auctions[_auctionId].incMax;
         } else {
-            return s.collections[s.tokenMapping[_auctionId].contractAddress].incMax;
+            return collections[tokenMapping[_auctionId].contractAddress].incMax;
         }
     }
 
     function getAuctionBidMultiplier(uint256 _auctionId) public view returns (uint256) {
-        if (s.auctions[_auctionId].bidMultiplier != 0) {
-            return s.auctions[_auctionId].bidMultiplier;
+        if (auctions[_auctionId].bidMultiplier != 0) {
+            return auctions[_auctionId].bidMultiplier;
         } else {
-            return s.collections[s.tokenMapping[_auctionId].contractAddress].bidMultiplier;
+            return collections[tokenMapping[_auctionId].contractAddress].bidMultiplier;
         }
     }
 
@@ -609,7 +609,7 @@ contract EconAuctionHouse is Ownable {
         uint256 bidIncMax = getAuctionIncMax(_auctionId);
 
         // Init the baseline bid we need to perform against
-        uint256 baseBid = (s.auctions[_auctionId].highestBid * (bidDecimals + getAuctionStepMin(_auctionId))) / bidDecimals;
+        uint256 baseBid = (auctions[_auctionId].highestBid * (bidDecimals + getAuctionStepMin(_auctionId))) / bidDecimals;
 
         // If no bids are present, set a basebid value of 1 to prevent divide by 0 errors
         if (baseBid == 0) {

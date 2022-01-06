@@ -8,9 +8,11 @@ import "./interfaces/IERC1155TokenReceiver.sol";
 import "./interfaces/IEconNFTERC721.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
+import "hardhat/console.sol";
+
 contract EconAuctionHouse is Ownable {
 
-        //Event emitted when an auction is being setup
+    //Event emitted when an auction is being setup
     event Auction_Initialized(
         uint256 indexed _auctionID,
         uint256 indexed _tokenID,
@@ -48,6 +50,7 @@ contract EconAuctionHouse is Ownable {
         address owner;
         address highestBidder;
         uint256 highestBid;
+        uint256 secondHighestBid;
         uint256 auctionDebt;
         uint256 dueIncentives;
         address contractAddress;
@@ -290,6 +293,7 @@ contract EconAuctionHouse is Ownable {
 
         //Setting the new bid/bidder as the highest bid/bidder
         s.auctions[_auctionId].highestBidder = msg.sender;
+        s.auctions[_auctionId].secondHighestBid = s.auctions[_auctionId].highestBid;
         s.auctions[_auctionId].highestBid = _bidAmount;
 
         if ((previousHighestBid + duePay) != 0) {
@@ -308,7 +312,7 @@ contract EconAuctionHouse is Ownable {
     function claimForFirstTime(uint256 _auctionId) public {
         require(
             IEconNFTERC721(econNFT).getNumberOfPeriodPassed() == 0, 
-            "EconAuctionHouse: Period to claim for the first time has passed"
+            "EconAuctionHouse : Period to claim for the first time has passed"
         );
         address _contractAddress = s.tokenMapping[_auctionId].contractAddress;
         uint256 _tid = s.tokenMapping[_auctionId].tokenId;
@@ -320,13 +324,23 @@ contract EconAuctionHouse is Ownable {
         //Prevents re-entrancy
         s.auctionItemClaimed[_auctionId] = true;
 
-        //Todo: Add in the various Aavegotchi addresses
-        uint256 _proceeds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].auctionDebt;
+        uint256 _proceeds;
+        uint256 remainingFunds;
+        if(s.auctions[_auctionId].secondHighestBid == 0) {
+            _proceeds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].auctionDebt;
+        } else {
+            _proceeds = s.auctions[_auctionId].secondHighestBid - s.auctions[_auctionId].auctionDebt;
+            remainingFunds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].secondHighestBid;
+        }
 
-        //Added to prevent revert
-        IERC20(s.erc20Currency).approve(address(this), _proceeds);
+        // Added to prevent revert
+        IERC20(s.erc20Currency).approve(address(this), 2**256 - 1);
 
         IERC20(s.erc20Currency).transferFrom(address(this), s.daoTreasury, _proceeds);
+
+        if(remainingFunds > 0) {
+            IERC20(s.erc20Currency).transferFrom(address(this), s.auctions[_auctionId].highestBidder, remainingFunds);
+        }
 
         if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC721"))) {
             //0x73ad2146
@@ -358,15 +372,25 @@ contract EconAuctionHouse is Ownable {
         //Prevents re-entrancy
         s.auctionItemClaimed[_auctionId] = true;
 
-        //Todo: Add in the various Aavegotchi addresses
-        uint256 _proceeds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].auctionDebt;
+        uint256 _proceeds;
+        uint256 remainingFunds;
+        if(s.auctions[_auctionId].secondHighestBid == 0) {
+            _proceeds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].auctionDebt;
+        } else {
+            _proceeds = s.auctions[_auctionId].secondHighestBid - s.auctions[_auctionId].auctionDebt;
+            remainingFunds = s.auctions[_auctionId].highestBid - s.auctions[_auctionId].secondHighestBid;
+        }
 
         //Added to prevent revert
-        IERC20(s.erc20Currency).approve(address(this), _proceeds);
+        IERC20(s.erc20Currency).approve(address(this), 2**256 - 1);
 
-        IERC20(s.erc20Currency).transferFrom(address(this), previousOwnerForReAuction[_tid], (_proceeds * 7000) / 100);
+        IERC20(s.erc20Currency).transferFrom(address(this), previousOwnerForReAuction[_tid], (_proceeds * 7000) / 10000);
 
-        IERC20(s.erc20Currency).transferFrom(address(this), s.daoTreasury, (_proceeds * 3000) / 100);
+        IERC20(s.erc20Currency).transferFrom(address(this), s.daoTreasury, (_proceeds * 3000) / 10000);
+
+        if(remainingFunds > 0 ) {
+            IERC20(s.erc20Currency).transferFrom(address(this), s.auctions[_auctionId].highestBidder, remainingFunds);
+        }
 
         if (s.tokenMapping[_auctionId].tokenKind == bytes4(keccak256("ERC721"))) {
             //0x73ad2146
@@ -380,13 +404,14 @@ contract EconAuctionHouse is Ownable {
         emit Auction_ItemClaimed(_auctionId);
     }
 
-    function takeERC721Back(address _contractAddress, address _from, uint256 _id) external onlyOwner {
+    function takeERC721Back(address _from, uint256 _id) external onlyOwner {
         require(block.timestamp >= IEconNFTERC721(econNFT).getCurrentExpirationTimestamp(), "EconAuctionHouse: Period has not passed yet");
         previousOwnerForReAuction[_id] = _from;
-        IERC721(_contractAddress).safeTransferFrom(_from, address(this), _id);
+        IERC721(econNFT).safeTransferFrom(_from, address(this), _id);
     }
 
-    function resetAuctionState(uint256 _auctionId) public onlyOwner {
+    function resetAuctionState(uint256 _auctionId, address _nftContract) public onlyOwner {
+        registerAnAuctionContract(_nftContract, 0, 0, 0, 0, 0, 0, 0);
         s.auctions[_auctionId].owner = address(0);
         s.auctions[_auctionId].highestBidder = address(0);
         s.auctions[_auctionId].highestBid = 0;
@@ -403,6 +428,7 @@ contract EconAuctionHouse is Ownable {
         s.auctions[_auctionId].bidMultiplier = 0;
         s.auctions[_auctionId].biddingAllowed = false;
         s.auctionItemClaimed[_auctionId] = false;
+        s.collections[_nftContract].biddingAllowed = false;
     }
 
     /// @notice Allow/disallow bidding and claiming for a whole token contract address.
@@ -582,10 +608,10 @@ contract EconAuctionHouse is Ownable {
         uint256 bidDecimals = getAuctionBidDecimals(_auctionId);
         uint256 bidIncMax = getAuctionIncMax(_auctionId);
 
-        //Init the baseline bid we need to perform against
+        // Init the baseline bid we need to perform against
         uint256 baseBid = (s.auctions[_auctionId].highestBid * (bidDecimals + getAuctionStepMin(_auctionId))) / bidDecimals;
 
-        //If no bids are present, set a basebid value of 1 to prevent divide by 0 errors
+        // If no bids are present, set a basebid value of 1 to prevent divide by 0 errors
         if (baseBid == 0) {
             baseBid = 1;
         }

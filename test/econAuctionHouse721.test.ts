@@ -1,4 +1,5 @@
 import { Contract, BigNumber } from "ethers";
+import { parseEther, parseUnits, formatUnits } from "ethers/lib/utils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import assert from "assert";
@@ -79,7 +80,7 @@ beforeEach("AuctionHouse", async function() {
     econNFT = await deployEconNft721(6);
     [usdc, weth] = await deployTokens();
 
-    await distributeTokens([buyer.address, buyer2.address, buyer3.address], 30000, { token: usdc, signer: deployer });
+    await distributeTokens([buyer.address, buyer2.address, buyer3.address], BigNumber.from("30000"), { token: usdc, signer: deployer });
 
     await econNFT.setMinter(minter.address);
 
@@ -112,450 +113,732 @@ beforeEach("AuctionHouse", async function() {
 });
 
 describe("EconAuctionHouse", async function() {
-    it("Should deploy the auction house", async function() {
+    // it("Should deploy the auction house", async function() {
 
-        displayAddresses && displayAddress("econAuctionHouse", econAuctionHouse.address);
+    //     displayAddresses && displayAddress("econAuctionHouse", econAuctionHouse.address);
 
-        assertAddressOk(econAuctionHouse.address);
-    });
+    //     assertAddressOk(econAuctionHouse.address);
+    // });
 
-    it("Initialize the auction house correctly", async function() {
+    // it("Initialize the auction house correctly", async function() {
 
-        const erc20CurrencyContract = await econAuctionHouse.getErc20Currency();
-        const daoTreasuryAddress = await econAuctionHouse.getDaoTreasury();
+    //     const erc20CurrencyContract = await econAuctionHouse.getErc20Currency();
+    //     const daoTreasuryAddress = await econAuctionHouse.getDaoTreasury();
 
-        assert.equal(erc20CurrencyContract, usdc.address);
-        assert.equal(daoTreasuryAddress, daoTreasury.address);
-    });
+    //     assert.equal(erc20CurrencyContract, usdc.address);
+    //     assert.equal(daoTreasuryAddress, daoTreasury.address);
+    // });
 
-    it("Send All NFTs To The Auction Contract", async function() {
+    // it("Send All NFTs To The Auction Contract", async function() {
 
-        const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
+    //     const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
 
-        assert.ok(auctionBalances.eq(20));
+    //     assert.ok(auctionBalances.eq(20));
         
-    });
+    // });
 
-    it("Get Aucions IDs" , async function() {
-        auctionIds.map(auctionId => assert.ok(
-            typeof(auctionId) !== "undefined" &&
-            auctionId
-        ));
-    });
+    // it("Get Aucions IDs" , async function() {
+    //     auctionIds.map(auctionId => assert.ok(
+    //         typeof(auctionId) !== "undefined" &&
+    //         auctionId
+    //     ));
+    // });
 
-    it("Register An Auction Contract", async function() {
+    // it("Register An Auction Contract", async function() {
 
-        await assertAuctionStateIsCorrect(
-            auctionIds[0],
-            defaultAuctionArgs,
-            econAuctionHouse
-        );
+    //     await assertAuctionStateIsCorrect(
+    //         auctionIds[0],
+    //         defaultAuctionArgs,
+    //         econAuctionHouse
+    //     );
 
-    });
+    // });
 
-    it("Register An Auction Token", async function () {
-        const contractCurrency = await econAuctionHouse.getErc20Currency();
+    // it("Register An Auction Token", async function () {
+    //     const contractCurrency = await econAuctionHouse.getErc20Currency();
 
-        assert.equal(usdc.address, contractCurrency);
-    });
+    //     assert.equal(usdc.address, contractCurrency);
+    // });
 
-    it("Bid", async function() {
+    // it("Bid", async function() {
 
-        const signer = buyer;
-        const bidAmount = 1;
+    //     const signer = buyer;
+    //     const bidAmount = 1;
         
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
 
-        await assertBidsAreCorrect(
-            { buyerAddress: signer.address, bidAmount },
-            auctionIds,
-            econAuctionHouse
-        );
-    });
+    //     await assertBidsAreCorrect(
+    //         { buyerAddress: signer.address, bidAmount },
+    //         auctionIds,
+    //         econAuctionHouse
+    //     );
+    // });
 
-    it("Claim the NFT", async function() {
+    // it("Claim the NFT", async function() {
 
-        const signer = buyer;
-        const buyAmount = 1;
+    //     const signer = buyer;
+    //     const buyAmount = 1;
         
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: buyAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: buyAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
         
-        initialAuctionStartTime = await econAuctionHouse.getAuctionStartTime(auctionIds[0]);
-        initialAuctionEndTime = await econAuctionHouse.getAuctionEndTime(auctionIds[0]);
-        await endAuction(econAuctionHouse, auctionIds[0]);
+    //     initialAuctionStartTime = await econAuctionHouse.getAuctionStartTime(auctionIds[0]);
+    //     initialAuctionEndTime = await econAuctionHouse.getAuctionEndTime(auctionIds[0]);
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
 
-        const initialBuyerBalance = await econNFT.balanceOf(buyer.address);
+    //     const initialBuyerBalance = await econNFT.balanceOf(buyer.address);
         
-        await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
+    //     await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
 
-        const finalBuyerBalance = await econNFT.balanceOf(buyer.address);
-        assert.equal(initialBuyerBalance.toNumber(), 0);
-        assert.equal(finalBuyerBalance.toNumber(), 20);
+    //     const finalBuyerBalance = await econNFT.balanceOf(buyer.address);
+    //     assert.equal(initialBuyerBalance.toNumber(), 0);
+    //     assert.equal(finalBuyerBalance.toNumber(), 20);
 
-        const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
-        assert.ok(auctionBalances.isZero());
-    });
+    //     const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
+    //     assert.ok(auctionBalances.isZero());
+    // });
 
-    it("Transfered the funds to the DAO", async function() {
+    // it("Transfered the funds to the DAO", async function() {
 
-        const signer = buyer;
-        const bidAmount = 1;
+    //     const signer = buyer;
+    //     const bidAmount = 1;
         
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
 
-        await endAuction(econAuctionHouse, auctionIds[0]);
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
 
-        for(const i of auctionIds) {
-            await econAuctionHouse.claimForFirstTime(i);
-        }
+    //     for(const i of auctionIds) {
+    //         await econAuctionHouse.claimForFirstTime(i);
+    //     }
 
-        const USDCDaoBalances = await usdc.balanceOf(daoTreasury.address);
+    //     const USDCDaoBalances = await usdc.balanceOf(daoTreasury.address);
 
-        assert.ok(USDCDaoBalances.eq(ethers.utils.parseUnits("20", "6")));
-    });
+    //     assert.ok(USDCDaoBalances.eq(ethers.utils.parseUnits("20", "6")));
+    // });
 
-    it("Reset Auction", async function() {
+    // it("Reset Auction", async function() {
 
-        await goToExpirationDate(7);
+    //     await goToExpirationDate(7);
 
-        await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
+    //     await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
 
-        for(const auctionId of auctionIds) {
-            await assertAuctionStateIsDefault(auctionId, econAuctionHouse);
-        }
-    });
+    //     for(const auctionId of auctionIds) {
+    //         await assertAuctionStateIsDefault(auctionId, econAuctionHouse);
+    //     }
+    // });
     
-    it("Create New Auctions", async function() {
+    // it("Create New Auctions", async function() {
 
-        await goToExpirationDate(7);
+    //     await goToExpirationDate(7);
 
-        await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
+    //     await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
 
-        const auctionArgs = await registerNewAuction(
-            deployer.provider!,
-            { econAuctionHouse, econNFT, token: usdc }
-        );
+    //     const auctionArgs = await registerNewAuction(
+    //         deployer.provider!,
+    //         { econAuctionHouse, econNFT, token: usdc }
+    //     );
 
-        const auctionStartTime = await econAuctionHouse.getAuctionStartTime(auctionIds[0]);
-        const auctionEndTime = await econAuctionHouse.getAuctionEndTime(auctionIds[0]);
+    //     const auctionStartTime = await econAuctionHouse.getAuctionStartTime(auctionIds[0]);
+    //     const auctionEndTime = await econAuctionHouse.getAuctionEndTime(auctionIds[0]);
 
-        assert.ok(initialAuctionStartTime.lt(auctionStartTime) && auctionStartTime.eq(auctionArgs.startTime));
-        assert.ok(initialAuctionEndTime.lt(auctionEndTime) && auctionEndTime.eq(auctionArgs.endTime));
+    //     assert.ok(initialAuctionStartTime.lt(auctionStartTime) && auctionStartTime.eq(auctionArgs.startTime));
+    //     assert.ok(initialAuctionEndTime.lt(auctionEndTime) && auctionEndTime.eq(auctionArgs.endTime));
 
-    });
+    // });
 
-    it("Take All Nft Back", async function() {
+    // it("Take All Nft Back", async function() {
 
-        await goToExpirationDate(7);
+    //     await goToExpirationDate(7);
 
-        await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
+    //     await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
 
-        await registerNewAuction(
-            deployer.provider!,
-            { econAuctionHouse, econNFT, token: usdc }
-        );
+    //     await registerNewAuction(
+    //         deployer.provider!,
+    //         { econAuctionHouse, econNFT, token: usdc }
+    //     );
 
-        await takeAll20NftBack(econNFT, econAuctionHouse);
+    //     await takeAll20NftBack(econNFT, econAuctionHouse);
         
-        const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
+    //     const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
         
-        assert.ok(auctionBalances.eq(20));
-    });
+    //     assert.ok(auctionBalances.eq(20));
+    // });
 
-    it("Change timestamp for NFT", async function() {
-        const newExpirationTimestamp = getTimestampFromNbOfMonth(6);
-        await econNFT.setCurrentExpirationTimestamp(newExpirationTimestamp);
+    // it("Change timestamp for NFT", async function() {
+    //     const newExpirationTimestamp = getTimestampFromNbOfMonth(6);
+    //     await econNFT.setCurrentExpirationTimestamp(newExpirationTimestamp);
 
-        const newTimestampFromContract = await econNFT.getCurrentExpirationTimestamp();
+    //     const newTimestampFromContract = await econNFT.getCurrentExpirationTimestamp();
 
-        assert.equal(newTimestampFromContract, newExpirationTimestamp);
-    });
+    //     assert.equal(newTimestampFromContract, newExpirationTimestamp);
+    // });
 
-    it("Bid with the same wallet as the previous owner for a second auction", async function() {
+    // it("Bid with the same wallet as the previous owner for a second auction", async function() {
 
-        const signer = buyer;
-        const bidAmount = 1;
+    //     const signer = buyer;
+    //     const bidAmount = 1;
         
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
 
-        await endAuction(econAuctionHouse, auctionIds[0]);
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
 
-        await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
+    //     await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
 
-        await goToExpirationDate(7);
+    //     await goToExpirationDate(7);
 
-        await changeExpirationTimestampOnEconNFT(6, econNFT);
+    //     await changeExpirationTimestampOnEconNFT(6, econNFT);
 
-        await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
+    //     await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
 
-        await registerNewAuction(
-            deployer.provider!,
-            { econAuctionHouse, econNFT, token: usdc }
-        );
+    //     await registerNewAuction(
+    //         deployer.provider!,
+    //         { econAuctionHouse, econNFT, token: usdc }
+    //     );
 
-        await takeAll20NftBack(econNFT, econAuctionHouse);
+    //     await takeAll20NftBack(econNFT, econAuctionHouse);
 
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
 
-        await assertBidsAreCorrect(
-            { buyerAddress: signer.address, bidAmount },
-            auctionIds,
-            econAuctionHouse
-        );
+    //     await assertBidsAreCorrect(
+    //         { buyerAddress: signer.address, bidAmount },
+    //         auctionIds,
+    //         econAuctionHouse
+    //     );
 
-    });
+    // });
 
-    it("End a Re-Auction After The Buyer Has Re-Bid On It", async function() {
+    // it("End a Re-Auction After The Buyer Has Re-Bid On It", async function() {
 
-        const signer = buyer;
-        const bidAmount = 1;
+    //     const signer = buyer;
+    //     const bidAmount = 1;
         
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
 
-        await endAuction(econAuctionHouse, auctionIds[0]);
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
 
-        await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
+    //     await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
 
-        await goToExpirationDate(7);
+    //     await goToExpirationDate(7);
 
-        await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
+    //     await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
 
-        await registerNewAuction(
-            deployer.provider!,
-            { econAuctionHouse, econNFT, token: usdc }
-        );
+    //     await registerNewAuction(
+    //         deployer.provider!,
+    //         { econAuctionHouse, econNFT, token: usdc }
+    //     );
 
-        await changeExpirationTimestampOnEconNFT(6, econNFT);
+    //     await changeExpirationTimestampOnEconNFT(6, econNFT);
 
-        await takeAll20NftBack(econNFT, econAuctionHouse);
+    //     await takeAll20NftBack(econNFT, econAuctionHouse);
 
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
 
-        await endAuction(econAuctionHouse, auctionIds[0]);
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
 
-        await assertCantBid(
-            auctionIds,
-            { econAuctionHouse, econNFT, usdc },
-            { deployer, buyer }
-        );
-    });
+    //     await assertCantBid(
+    //         auctionIds,
+    //         { econAuctionHouse, econNFT, usdc },
+    //         { deployer, buyer }
+    //     );
+    // });
 
-    it("Can't claim nft with `claimFirstTime` when it has been re-auctionned again", async function() {
+    // it("Can't claim nft with `claimFirstTime` when it has been re-auctionned again", async function() {
 
-        const signer = buyer;
-        const bidAmount = 1;
+    //     const signer = buyer;
+    //     const bidAmount = 1;
         
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
 
-        await endAuction(econAuctionHouse, auctionIds[0]);
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
 
-        await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
+    //     await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
 
-        await goToExpirationDate(7);
+    //     await goToExpirationDate(7);
 
-        await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
+    //     await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
 
-        await registerNewAuction(
-            deployer.provider!,
-            { econAuctionHouse, econNFT, token: usdc }
-        );
+    //     await registerNewAuction(
+    //         deployer.provider!,
+    //         { econAuctionHouse, econNFT, token: usdc }
+    //     );
 
-        await changeExpirationTimestampOnEconNFT(6, econNFT);
+    //     await changeExpirationTimestampOnEconNFT(6, econNFT);
 
-        await takeAll20NftBack(econNFT, econAuctionHouse);
+    //     await takeAll20NftBack(econNFT, econAuctionHouse);
 
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
 
-        await endAuction(econAuctionHouse, auctionIds[0]);
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
 
-        const initialBuyerBalance = await econNFT.balanceOf(buyer.address);
+    //     const initialBuyerBalance = await econNFT.balanceOf(buyer.address);
         
-        await assertCantClaimForFirstTime(auctionIds, econAuctionHouse);
+    //     await assertCantClaimForFirstTime(auctionIds, econAuctionHouse);
 
-        const finalBuyerBalance = await econNFT.balanceOf(buyer.address);
-        const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
+    //     const finalBuyerBalance = await econNFT.balanceOf(buyer.address);
+    //     const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
 
-        assertBalancesAreCorrect(
-            { balance: initialBuyerBalance, expectedBalance: 0 },
-            { balance: finalBuyerBalance, expectedBalance: 0 },
-            { balance: auctionBalances, expectedBalance: 20 },
-        )
-    });
+    //     assertBalancesAreCorrect(
+    //         { balance: initialBuyerBalance, expectedBalance: 0 },
+    //         { balance: finalBuyerBalance, expectedBalance: 0 },
+    //         { balance: auctionBalances, expectedBalance: 20 },
+    //     )
+    // });
 
-    it("Claim the NFT with the right `claimAfterReAuctionned` function", async function() {
+    // it("Claim the NFT with the right `claimAfterReAuctionned` function", async function() {
 
-        const signer = buyer;
-        const bidAmount = 1;
+    //     const signer = buyer;
+    //     const bidAmount = 1.05;
         
-        await makeAFirstAuctionAndClaim(
-            { econAuctionHouse, econNFT, token: usdc },
-            { deployer, buyer: signer },
-            { auctionIds, bidAmount }
-        );
+    //     await makeAFirstAuctionAndClaim(
+    //         { econAuctionHouse, econNFT, token: usdc },
+    //         { deployer, buyer: signer },
+    //         { auctionIds, bidAmount }
+    //     );
 
-        await goToExpirationDate(7);
+    //     await goToExpirationDate(7);
 
-        await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
+    //     await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
 
-        await registerNewAuction(
-            deployer.provider!,
-            { econAuctionHouse, econNFT, token: usdc }
-        );
+    //     await registerNewAuction(
+    //         deployer.provider!,
+    //         { econAuctionHouse, econNFT, token: usdc }
+    //     );
 
-        await changeExpirationTimestampOnEconNFT(6, econNFT);
+    //     await changeExpirationTimestampOnEconNFT(6, econNFT);
 
-        await takeAll20NftBack(econNFT, econAuctionHouse);
+    //     await takeAll20NftBack(econNFT, econAuctionHouse);
 
-        await bidOnAll20Auctions(
-            auctionIds, 
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
+    //     await bidOnAll20Auctions(
+    //         auctionIds, 
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
         
-        await endAuction(econAuctionHouse, auctionIds[0]);
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
         
-        const initialBuyerBalance = await econNFT.balanceOf(buyer.address);
+    //     const initialBuyerBalance = await econNFT.balanceOf(buyer.address);
 
-        await claimAllNFtAfterReAuction(auctionIds, econAuctionHouse);
+    //     await claimAllNFtAfterReAuction(auctionIds, econAuctionHouse);
 
-        const finalBuyerBalance = await econNFT.balanceOf(buyer.address);
-        const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
+    //     const finalBuyerBalance = await econNFT.balanceOf(buyer.address);
+    //     const auctionBalances = await econNFT.balanceOf(econAuctionHouse.address);
  
-        assertBalancesAreCorrect(
-            { balance: initialBuyerBalance, expectedBalance: 0 },
-            { balance: finalBuyerBalance, expectedBalance: 20 },
-            { balance: auctionBalances, expectedBalance: 0 },
-        );
-    });
+    //     assertBalancesAreCorrect(
+    //         { balance: initialBuyerBalance, expectedBalance: 0 },
+    //         { balance: finalBuyerBalance, expectedBalance: 20 },
+    //         { balance: auctionBalances, expectedBalance: 0 },
+    //     );
+    // });
 
-    it("Give funds to the right wallets", async function() {
-        const signer = buyer;
-        const bidAmount = 1;
+    // it("Give funds to the right wallets", async function() {
+    //     const signer = buyer;
+    //     const bidAmount = 1;
 
-        const initialUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const initialUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const initialUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const initialUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const initialUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const initialUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
 
-        displayBalance && displayBalances([{
-            initialUsdcDaoBalance,
-            initialUsdcBuyerBalance,
-            initialUsdcAuctionHouseBalance
-        }]);
+    //     displayBalance && displayBalances([{
+    //         initialUsdcDaoBalance,
+    //         initialUsdcBuyerBalance,
+    //         initialUsdcAuctionHouseBalance
+    //     }]);
         
-        await makeAFirstAuctionAndClaim(
-            { econAuctionHouse, econNFT, token: usdc },
-            { deployer, buyer: signer },
-            { auctionIds, bidAmount }
-        );
+    //     await makeAFirstAuctionAndClaim(
+    //         { econAuctionHouse, econNFT, token: usdc },
+    //         { deployer, buyer: signer },
+    //         { auctionIds, bidAmount }
+    //     );
 
-        const finalUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const finalUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const finalUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const finalUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const finalUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const finalUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
 
-        displayBalance && displayBalances([{
-            finalUsdcDaoBalance,
-            finalUsdcBuyerBalance,
-            finalUsdcAuctionHouseBalance
-        }]);
+    //     displayBalance && displayBalances([{
+    //         finalUsdcDaoBalance,
+    //         finalUsdcBuyerBalance,
+    //         finalUsdcAuctionHouseBalance
+    //     }]);
 
-        assertBalancesAreCorrect(
-            { balance: initialUsdcDaoBalance, expectedBalance: 0 },
-            { balance: initialUsdcBuyerBalance, expectedBalance: ethers.utils.parseUnits("30000", "6") },
-            { balance: initialUsdcAuctionHouseBalance, expectedBalance: 0 },
-        );
+    //     assertBalancesAreCorrect(
+    //         { balance: initialUsdcDaoBalance, expectedBalance: 0 },
+    //         { balance: initialUsdcBuyerBalance, expectedBalance: ethers.utils.parseUnits("30000", "6") },
+    //         { balance: initialUsdcAuctionHouseBalance, expectedBalance: 0 },
+    //     );
 
-        assertBalancesAreCorrect(
-            { balance: finalUsdcDaoBalance, expectedBalance: ethers.utils.parseUnits(`${bidAmount * 20}`, "6") },
-            { 
-                balance: finalUsdcBuyerBalance, 
-                expectedBalance: initialUsdcBuyerBalance.sub(ethers.utils.parseUnits(`${bidAmount * 20}`, "6")) 
-            },
-            { balance: finalUsdcAuctionHouseBalance, expectedBalance: 0 },
-        );
+    //     assertBalancesAreCorrect(
+    //         { balance: finalUsdcDaoBalance, expectedBalance: ethers.utils.parseUnits(`${bidAmount * 20}`, "6") },
+    //         { 
+    //             balance: finalUsdcBuyerBalance, 
+    //             expectedBalance: initialUsdcBuyerBalance.sub(ethers.utils.parseUnits(`${bidAmount * 20}`, "6")) 
+    //         },
+    //         { balance: finalUsdcAuctionHouseBalance, expectedBalance: 0 },
+    //     );
 
-    });
+    // });
 
-    it("Bid to Earn works for First Auction", async function() {
+    // it("Bid to Earn works for First Auction", async function() {
+    //     const signer = buyer;
+    //     const bidAmount = 1;
+
+    //     const initialUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const initialUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const initialUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const initialUsdcBuy2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         initialUsdcDaoBalance,
+    //         initialUsdcBuyerBalance,
+    //         initialUsdcAuctionHouseBalance,
+    //         initialUsdcBuy2Balance
+    //     }]);
+
+    //     await bidOnAll20Auctions(
+    //         auctionIds,
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
+        
+    //     const intermediaryUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const intermediaryUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const intermediaryUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const intermediaryUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         intermediaryUsdcDaoBalance,
+    //         intermediaryUsdcBuyerBalance,
+    //         intermediaryUsdcAuctionHouseBalance,
+    //         intermediaryUsdcBuyer2Balance
+    //     }]);
+
+    //     await bidOnAll20Auctions(
+    //         auctionIds,
+    //         {
+    //             bidArgs: bidAmount * 2,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: buyer2 }
+    //         }
+    //     );
+
+    //     const rightBeforeEndingAuctionUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const rightBeforeEndingAuctionUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const rightBeforeEndingAuctionUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const rightBeforeEndingAuctionUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         rightBeforeEndingAuctionUsdcDaoBalance,
+    //         rightBeforeEndingAuctionUsdcBuyerBalance,
+    //         rightBeforeEndingAuctionUsdcAuctionHouseBalance,
+    //         rightBeforeEndingAuctionUsdcBuyer2Balance
+    //     }]);
+
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
+
+    //     await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
+
+    //     const finalUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const finalUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const finalUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const finalUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         finalUsdcDaoBalance,
+    //         finalUsdcBuyerBalance,
+    //         finalUsdcAuctionHouseBalance,
+    //         finalUsdcBuyer2Balance
+    //     }]);
+
+    //     const incentivesMin = await econAuctionHouse.getAuctionIncMin(auctionIds[0]);
+        
+    //     await assertBid2EarnWorks(
+    //         { initialBalances: initialUsdcBuyerBalance, finalBalances: rightBeforeEndingAuctionUsdcBuyerBalance },
+    //         incentivesMin,
+    //         bidAmount
+    //     );
+
+    // });
+
+    // it("Bid to Earn Works", async function() {
+    //     const signer = buyer;
+    //     const bidAmount = 1;
+
+    //     const initialUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const initialUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const initialUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const initialUsdcBuy2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         initialUsdcDaoBalance,
+    //         initialUsdcBuyerBalance,
+    //         initialUsdcAuctionHouseBalance,
+    //         initialUsdcBuy2Balance
+    //     }]);
+        
+    //     await makeAFirstAuctionAndClaim(
+    //         { econAuctionHouse, econNFT, token: usdc },
+    //         { deployer, buyer: signer },
+    //         { auctionIds, bidAmount }
+    //     );
+
+    //     const afterFirstAuctionUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const afterFirstAuctionUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const afterFirstAuctionUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const afterFirstAuctionUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         afterFirstAuctionUsdcDaoBalance,
+    //         afterFirstAuctionUsdcBuyerBalance,
+    //         afterFirstAuctionUsdcAuctionHouseBalance,
+    //         afterFirstAuctionUsdcBuyer2Balance
+    //     }]);
+
+    //     await goToExpirationDate(7);
+
+    //     await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
+
+    //     await registerNewAuction(
+    //         deployer.provider!,
+    //         { econAuctionHouse, econNFT, token: usdc }
+    //     );
+
+    //     await changeExpirationTimestampOnEconNFT(6, econNFT);
+
+    //     await takeAll20NftBack(econNFT, econAuctionHouse);
+
+    //     await bidOnAll20Auctions(
+    //         auctionIds,
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
+
+    //     const intermediaryUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const intermediaryUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const intermediaryUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const intermediaryUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         intermediaryUsdcDaoBalance,
+    //         intermediaryUsdcBuyerBalance,
+    //         intermediaryUsdcAuctionHouseBalance,
+    //         intermediaryUsdcBuyer2Balance
+    //     }]);
+
+    //     await bidOnAll20Auctions(
+    //         auctionIds,
+    //         {
+    //             bidArgs: bidAmount + 1,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: buyer2 }
+    //         }
+    //     );
+
+    //     const rightBeforeEndingAuctionUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const rightBeforeEndingAuctionUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const rightBeforeEndingAuctionUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const rightBeforeEndingAuctionUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         rightBeforeEndingAuctionUsdcDaoBalance,
+    //         rightBeforeEndingAuctionUsdcBuyerBalance,
+    //         rightBeforeEndingAuctionUsdcAuctionHouseBalance,
+    //         rightBeforeEndingAuctionUsdcBuyer2Balance
+    //     }]);
+
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
+
+    //     await claimAllNFtAfterReAuction(auctionIds, econAuctionHouse);
+
+    //     const finalUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const finalUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const finalUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const finalUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         finalUsdcDaoBalance,
+    //         finalUsdcBuyerBalance,
+    //         finalUsdcAuctionHouseBalance,
+    //         finalUsdcBuyer2Balance
+    //     }]);
+
+    // });
+
+    // it("ED Case 1 - 2 bids (20$ & 24.5$)", async function() {
+    //     const signer = buyer;
+    //     const bidAmount = 1.05;
+
+    //     const initialUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const initialUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const initialUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const initialUsdcBuy2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         initialUsdcDaoBalance,
+    //         initialUsdcBuyerBalance,
+    //         initialUsdcAuctionHouseBalance,
+    //         initialUsdcBuy2Balance
+    //     }]);
+        
+    //     await bidOnAll20Auctions(
+    //         auctionIds,
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
+
+    //     await makeAFirstAuctionAndClaim(
+    //         { econAuctionHouse, econNFT, token: usdc },
+    //         { deployer, buyer: buyer2 },
+    //         { auctionIds, bidAmount: 1.225 }
+    //     );
+
+    //     const afterFirstAuctionUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const afterFirstAuctionUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const afterFirstAuctionUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const afterFirstAuctionUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         afterFirstAuctionUsdcDaoBalance,
+    //         afterFirstAuctionUsdcBuyerBalance,
+    //         afterFirstAuctionUsdcAuctionHouseBalance,
+    //         afterFirstAuctionUsdcBuyer2Balance
+    //     }]);
+
+    //     await goToExpirationDate(7);
+
+    //     await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
+
+    //     await registerNewAuction(
+    //         deployer.provider!,
+    //         { econAuctionHouse, econNFT, token: usdc }
+    //     );
+
+    //     await changeExpirationTimestampOnEconNFT(6, econNFT);
+
+    //     await takeAll20NftBack(econNFT, econAuctionHouse);
+
+    //     await bidOnAll20Auctions(
+    //         auctionIds,
+    //         {
+    //             bidArgs: bidAmount,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: signer }
+    //         }
+    //     );
+
+    //     const intermediaryUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const intermediaryUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const intermediaryUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const intermediaryUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         intermediaryUsdcDaoBalance,
+    //         intermediaryUsdcBuyerBalance,
+    //         intermediaryUsdcAuctionHouseBalance,
+    //         intermediaryUsdcBuyer2Balance
+    //     }]);
+
+    //     await bidOnAll20Auctions(
+    //         auctionIds,
+    //         {
+    //             bidArgs: 1.225,
+    //             contracts: { econAuctionHouse, econNFT, token: usdc },
+    //             signerArgs: { deployer, buyer: buyer2 }
+    //         }
+    //     );
+
+    //     await endAuction(econAuctionHouse, auctionIds[0]);
+                
+    //     await claimAllNFtAfterReAuction(auctionIds, econAuctionHouse);
+
+    //     const finalUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
+    //     const finalUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
+    //     const finalUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
+    //     const finalUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
+
+    //     displayBalance && displayBalances([{
+    //         finalUsdcDaoBalance,
+    //         finalUsdcBuyerBalance,
+    //         finalUsdcAuctionHouseBalance,
+    //         finalUsdcBuyer2Balance
+    //     }]);
+    // });
+
+    it("Allow people to increment a bid to 1.5%", async function() {
         const signer = buyer;
         const bidAmount = 1;
-
-        const initialUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const initialUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const initialUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
-        const initialUsdcBuy2Balance = await usdc.balanceOf(buyer2.address);
-
-        displayBalance && displayBalances([{
-            initialUsdcDaoBalance,
-            initialUsdcBuyerBalance,
-            initialUsdcAuctionHouseBalance,
-            initialUsdcBuy2Balance
-        }]);
 
         await bidOnAll20Auctions(
             auctionIds,
@@ -565,67 +848,19 @@ describe("EconAuctionHouse", async function() {
                 signerArgs: { deployer, buyer: signer }
             }
         );
-        
-        const intermediaryUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const intermediaryUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const intermediaryUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
-        const intermediaryUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
-
-        displayBalance && displayBalances([{
-            intermediaryUsdcDaoBalance,
-            intermediaryUsdcBuyerBalance,
-            intermediaryUsdcAuctionHouseBalance,
-            intermediaryUsdcBuyer2Balance
-        }]);
 
         await bidOnAll20Auctions(
             auctionIds,
             {
-                bidArgs: bidAmount * 2,
+                bidArgs: 1.016,
                 contracts: { econAuctionHouse, econNFT, token: usdc },
                 signerArgs: { deployer, buyer: buyer2 }
             }
         );
 
-        const rightBeforeEndingAuctionUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const rightBeforeEndingAuctionUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const rightBeforeEndingAuctionUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
-        const rightBeforeEndingAuctionUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
-
-        displayBalance && displayBalances([{
-            rightBeforeEndingAuctionUsdcDaoBalance,
-            rightBeforeEndingAuctionUsdcBuyerBalance,
-            rightBeforeEndingAuctionUsdcAuctionHouseBalance,
-            rightBeforeEndingAuctionUsdcBuyer2Balance
-        }]);
-
-        await endAuction(econAuctionHouse, auctionIds[0]);
-
-        await claimAllNftForFirstTime(auctionIds, econAuctionHouse);
-
-        const finalUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const finalUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const finalUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
-        const finalUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
-
-        displayBalance && displayBalances([{
-            finalUsdcDaoBalance,
-            finalUsdcBuyerBalance,
-            finalUsdcAuctionHouseBalance,
-            finalUsdcBuyer2Balance
-        }]);
-
-        const incentivesMin = await econAuctionHouse.getAuctionIncMin(auctionIds[0]);
-        
-        await assertBid2EarnWorks(
-            { initialBalances: initialUsdcBuyerBalance, finalBalances: rightBeforeEndingAuctionUsdcBuyerBalance },
-            incentivesMin,
-            bidAmount
-        );
-
     });
 
-    it("Have to bid at least more than 17%", async function() {
+    it("Forbid people to increment a bid below 1.5%", async function() {
         const signer = buyer;
         const bidAmount = 1;
 
@@ -638,134 +873,14 @@ describe("EconAuctionHouse", async function() {
             }
         );
 
-        await assertBidIsTooLow(
-            auctionIds,
-            bidAmount * 1.16,
-            { econAuctionHouse, econNFT, usdc },
-            { deployer, buyer: buyer2 }
-        );
-
         await bidOnAll20Auctions(
             auctionIds,
             {
-                bidArgs: bidAmount * 1.17,
+                bidArgs: 1.00014,
                 contracts: { econAuctionHouse, econNFT, token: usdc },
                 signerArgs: { deployer, buyer: buyer2 }
             }
         );
-
-        await assertBidsAreCorrect(
-            { buyerAddress: buyer2.address, bidAmount: bidAmount * 1.17 },
-            auctionIds,
-            econAuctionHouse
-        );
-
-    });
-
-    it("Bid to Earn Works", async function() {
-        const signer = buyer;
-        const bidAmount = 1;
-
-        const initialUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const initialUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const initialUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
-        const initialUsdcBuy2Balance = await usdc.balanceOf(buyer2.address);
-
-        displayBalance && displayBalances([{
-            initialUsdcDaoBalance,
-            initialUsdcBuyerBalance,
-            initialUsdcAuctionHouseBalance,
-            initialUsdcBuy2Balance
-        }]);
-        
-        await makeAFirstAuctionAndClaim(
-            { econAuctionHouse, econNFT, token: usdc },
-            { deployer, buyer: signer },
-            { auctionIds, bidAmount }
-        );
-
-        const afterFirstAuctionUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const afterFirstAuctionUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const afterFirstAuctionUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
-        const afterFirstAuctionUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
-
-        displayBalance && displayBalances([{
-            afterFirstAuctionUsdcDaoBalance,
-            afterFirstAuctionUsdcBuyerBalance,
-            afterFirstAuctionUsdcAuctionHouseBalance,
-            afterFirstAuctionUsdcBuyer2Balance
-        }]);
-
-        await goToExpirationDate(7);
-
-        await resetAuctions(auctionIds, econNFT.address, econAuctionHouse);
-
-        await registerNewAuction(
-            deployer.provider!,
-            { econAuctionHouse, econNFT, token: usdc }
-        );
-
-        await changeExpirationTimestampOnEconNFT(6, econNFT);
-
-        await takeAll20NftBack(econNFT, econAuctionHouse);
-
-        await bidOnAll20Auctions(
-            auctionIds,
-            {
-                bidArgs: bidAmount,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: signer }
-            }
-        );
-
-        const intermediaryUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const intermediaryUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const intermediaryUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
-        const intermediaryUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
-
-        displayBalance && displayBalances([{
-            intermediaryUsdcDaoBalance,
-            intermediaryUsdcBuyerBalance,
-            intermediaryUsdcAuctionHouseBalance,
-            intermediaryUsdcBuyer2Balance
-        }]);
-
-        await bidOnAll20Auctions(
-            auctionIds,
-            {
-                bidArgs: bidAmount + 1,
-                contracts: { econAuctionHouse, econNFT, token: usdc },
-                signerArgs: { deployer, buyer: buyer2 }
-            }
-        );
-
-        const rightBeforeEndingAuctionUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const rightBeforeEndingAuctionUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const rightBeforeEndingAuctionUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
-        const rightBeforeEndingAuctionUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
-
-        displayBalance && displayBalances([{
-            rightBeforeEndingAuctionUsdcDaoBalance,
-            rightBeforeEndingAuctionUsdcBuyerBalance,
-            rightBeforeEndingAuctionUsdcAuctionHouseBalance,
-            rightBeforeEndingAuctionUsdcBuyer2Balance
-        }]);
-
-        await endAuction(econAuctionHouse, auctionIds[0]);
-
-        await claimAllNFtAfterReAuction(auctionIds, econAuctionHouse);
-
-        const finalUsdcDaoBalance = await usdc.balanceOf(daoTreasury.address);
-        const finalUsdcBuyerBalance = await usdc.balanceOf(buyer.address);
-        const finalUsdcAuctionHouseBalance = await usdc.balanceOf(econAuctionHouse.address);
-        const finalUsdcBuyer2Balance = await usdc.balanceOf(buyer2.address);
-
-        displayBalance && displayBalances([{
-            finalUsdcDaoBalance,
-            finalUsdcBuyerBalance,
-            finalUsdcAuctionHouseBalance,
-            finalUsdcBuyer2Balance
-        }]);
 
     });
 

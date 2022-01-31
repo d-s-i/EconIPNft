@@ -8,8 +8,6 @@ import "./interfaces/IERC1155TokenReceiver.sol";
 import "./interfaces/IEconNFTERC721.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-import "hardhat/console.sol";
-
 contract EconAuctionHouse is Ownable {
 
     //Event emitted when an auction is being setup
@@ -86,15 +84,15 @@ contract EconAuctionHouse is Ownable {
     // contractAddress => tokenId => TokenIndex => _auctionId
     mapping(address => mapping(uint256 => mapping(uint256 => uint256))) internal auctionMapping; 
     //_auctionId => auctions
-    mapping(uint256 => Auction) auctions; 
+    mapping(uint256 => Auction) internal auctions; 
     //_auctionId => token_primaryKey
-    mapping(uint256 => TokenRepresentation) tokenMapping; 
+    mapping(uint256 => TokenRepresentation) internal tokenMapping; 
     // Contract => TokenID => Amount being auctionned
-    mapping(address => mapping(uint256 => uint256)) erc1155TokensIndex; 
+    mapping(address => mapping(uint256 => uint256)) internal erc1155TokensIndex; 
     //Contract => TokenID => Amount being auctionned
-    mapping(address => mapping(uint256 => uint256)) erc1155TokensUnderAuction; 
+    mapping(address => mapping(uint256 => uint256)) internal erc1155TokensUnderAuction; 
 
-    mapping(uint256 => bool) auctionItemClaimed;
+    mapping(uint256 => bool) internal auctionItemClaimed;
 
 
     address public econNFT;
@@ -253,12 +251,11 @@ contract EconAuctionHouse is Ownable {
         require(getAuctionEndTime(_auctionId) >= block.timestamp, "bid: Auction has already ended");
 
         require(_bidAmount > _highestBid, "bid: _bidAmount must be higher than _highestBid");
-
         require(
             // (_highestBid * (getAuctionBidDecimals(_auctionId)) + (getAuctionStepMin(_auctionId) / getAuctionBidDecimals(_auctionId))) >= _highestBid,
             // "bid: _bidAmount must meet the minimum bid"
 
-            (_highestBid * (getAuctionBidDecimals(_auctionId) + getAuctionStepMin(_auctionId))) <= (_bidAmount * getAuctionBidDecimals(_auctionId)),
+            (_highestBid * (getAuctionBidDecimals(_auctionId) + (getAuctionStepMin(_auctionId)))) / 1000 <= (_bidAmount * getAuctionBidDecimals(_auctionId)),
             "bid: _bidAmount must meet the minimum bid"
         );
 
@@ -423,7 +420,9 @@ contract EconAuctionHouse is Ownable {
         auctions[_auctionId].hammerTimeDuration = 0;
         auctions[_auctionId].bidDecimals = 0;
         auctions[_auctionId].stepMin = 0;
+        // multiply by 16
         auctions[_auctionId].incMin = 0;
+        // multiply by 16
         auctions[_auctionId].incMax = 0;
         auctions[_auctionId].bidMultiplier = 0;
         auctions[_auctionId].biddingAllowed = false;
@@ -606,10 +605,10 @@ contract EconAuctionHouse is Ownable {
     /// @dev Only callable internally
     function calculateIncentives(uint256 _auctionId, uint256 _newBidValue) internal view returns (uint256) {
         uint256 bidDecimals = getAuctionBidDecimals(_auctionId);
-        uint256 bidIncMax = getAuctionIncMax(_auctionId);
+        uint256 bidIncMax = getAuctionIncMax(_auctionId) / 1000;
 
         // Init the baseline bid we need to perform against
-        uint256 baseBid = (auctions[_auctionId].highestBid * (bidDecimals + getAuctionStepMin(_auctionId))) / bidDecimals;
+        uint256 baseBid = (auctions[_auctionId].highestBid * (bidDecimals + (getAuctionStepMin(_auctionId) / 1000))) / bidDecimals;
 
         // If no bids are present, set a basebid value of 1 to prevent divide by 0 errors
         if (baseBid == 0) {
@@ -618,13 +617,14 @@ contract EconAuctionHouse is Ownable {
 
         // Ratio of newBid compared to expected minBid
         uint256 decimaledRatio = ((bidDecimals * getAuctionBidMultiplier(_auctionId) * (_newBidValue - baseBid)) / baseBid) +
-            getAuctionIncMin(_auctionId) *
+            (getAuctionIncMin(_auctionId) / 1000) *
             bidDecimals;
 
         if (decimaledRatio > (bidDecimals * bidIncMax)) {
             decimaledRatio = bidDecimals * bidIncMax;
         }
 
-        return (_newBidValue * decimaledRatio) / (bidDecimals * bidDecimals);
+        // return (_newBidValue * decimaledRatio) / (bidDecimals * bidDecimals);
+        return ((_newBidValue * decimaledRatio) / (bidDecimals * bidDecimals));
     }
 }

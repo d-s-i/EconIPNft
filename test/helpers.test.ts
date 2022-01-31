@@ -71,7 +71,7 @@ export async function deployAllTokenContracts(minterAddress: string) {
 
 export async function distributeTokens(
     addresses: string[], 
-    amountPerAddress: number, 
+    amountPerAddress: BigNumber, 
     tokenContract: { token: Contract, signer: SignerWithAddress }
 ) {
     const token = tokenContract.token.connect(tokenContract.signer);
@@ -207,6 +207,7 @@ export async function getAuctionIds(econNFTAddress: string, econAuctionHouse:Con
     for(let i = 0; i < 20; i++) {
         let auctionId: BigNumber;
         auctionId = await econAuctionHouse.getAuctionID(econNFTAddress, i);
+        console.log(auctionId);
         auctionIds.push(auctionId);
     }
 

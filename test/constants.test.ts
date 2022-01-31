@@ -33,14 +33,12 @@ export interface BidOnAllAuctionState {
 export async function getAuctionArgs(provider: Provider, _tokenContract: Contract): Promise<InitializeAuctionFacet> {
   const block = await provider.getBlock("latest");
   const startTime = block.timestamp;
-  const endTime = startTime + (ONE_DAY_TIMESTAMP * 10);
+  const endTime = startTime + (ONE_DAY_TIMESTAMP * 1);
   const hammerTimeDuration = ONE_DAY_TIMESTAMP / 24;
   const bidDecimals = await _tokenContract.decimals();
-  // stepMin === 1 => min +16.666% to outbid 
-  const stepMin = 1;
-  // incMin === 1 => 116% refund
-  const incMin = 1;
-  const incMax = 1;
+  const stepMin = 150;
+  const incMin = 1000;
+  const incMax = 1000;
 
   return [startTime, endTime, hammerTimeDuration, bidDecimals, stepMin, incMin, incMax];
 }

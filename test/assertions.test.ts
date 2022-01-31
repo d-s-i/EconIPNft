@@ -5,6 +5,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 import { bidOnAuctionWithToken, bidOnAll20Auctions } from "./helpers.test";
 import { AuctionState, BidOnAllAuctionState } from "./constants.test";
+import { parseUnits } from "ethers/lib/utils";
 
 export function assertAddressOk(testedAddress: string | undefined) {
     assert.ok(
@@ -145,25 +146,25 @@ export async function assertBid2EarnWorks(
     bidAmount: number
 ) {
 
-    if(incentivesMin > 6) {
-        throw new Error("Incentives max are 6 because incentivesMin === 6 means that 100% of the funds gets refunded");
-    }
-
-    const multiplierMin = (incentivesMin * 16) + 100;
-    const multiplierMax = (incentivesMin * 20) + 100;
+    // const multiplierMin = (incentivesMin * 16) + 100;
+    // const multiplierMax = (incentivesMin * 20) + 100;
     
-    assert.ok(balances.finalBalances.gt(
-        balances.initialBalances.add(
-            ethers.utils.parseUnits(BigNumber.from(bidAmount * 20).mul(multiplierMin).div(100).sub(bidAmount * 20).toString(), "6")
-            )
-        )
-    );
-    assert.ok(balances.finalBalances.lt(
-        balances.initialBalances.add(
-            ethers.utils.parseUnits(BigNumber.from(bidAmount * 20).mul(multiplierMax).div(100).sub(bidAmount * 20).toString(), "6")
-            )
-        )
-    );
+    // assert.ok(balances.finalBalances.gt(
+    //     balances.initialBalances.add(
+    //         ethers.utils.parseUnits(BigNumber.from(bidAmount * 20).mul(multiplierMin).div(100).sub(bidAmount * 20).toString(), "6")
+    //         )
+    //     )
+    // );
+    // assert.ok(balances.finalBalances.lt(
+    //     balances.initialBalances.add(
+    //         ethers.utils.parseUnits(BigNumber.from(bidAmount * 20).mul(multiplierMax).div(100).sub(bidAmount * 20).toString(), "6")
+    //         )
+    //     )
+    // );
+
+    assert.ok(balances.finalBalances.eq(
+        balances.initialBalances.add(BigNumber.from(bidAmount).mul(incentivesMin).div(1000))
+    ));
 }
 
 export async function assertBidIsTooLow(

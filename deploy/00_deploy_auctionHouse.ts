@@ -12,45 +12,44 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   
   if(+chainId === 4) {
 
-    // const usdcAddress = "0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b";
-    // const daoTreasuryAddress = "0x945A8480d61D85ED755013169dC165574d751D1a";
+    const usdcAddress = "0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b";
+    const daoTreasuryAddress = "0x945A8480d61D85ED755013169dC165574d751D1a";
+    const econNFTAddress = "0x68FA2958Aa8c8885D71C331FeF5eeED4D4AB13aA";
 
-    // const [signer] = await hre.ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
 
-    // const AuctionHouseFactory = await hre.ethers.getContractFactory("EconAuctionHouse");
-    // const deployResult = await deploy("EconAuctionHouse", { from: deployer, log: true, args: [] });
+    const AuctionHouseFactory = await hre.ethers.getContractFactory("EconAuctionHouse");
+    const deployResult = await deploy("EconAuctionHouse", { from: deployer, log: true, args: [econNFTAddress], waitConfirmations: 3 });
 
-    // const econAuctionHouse = await new ethers.Contract(deployResult.address, AuctionHouseFactory.interface, signer)
+    const econAuctionHouse = await new ethers.Contract(deployResult.address, AuctionHouseFactory.interface, signer)
 
-    // console.log(`Congrats! Your EconNFTContract just deployed. You can interact with it at ${deployResult.address}`);
+    console.log(`Congrats! Your EconNFTContract just deployed. You can interact with it at ${deployResult.address}`);
 
-    // console.log("Initializing the auction house");
+    console.log("Initializing the auction house");
 
-    // try {
-    //   await econAuctionHouse.setErc20Currency(usdcAddress);
-    // } catch(error) {
-    //   console.log(error);
-    //   console.log("An error occurend when setting the ERC20 currency on the Auction House");
-    // }
+    try {
+      await econAuctionHouse.setErc20Currency(usdcAddress);
+    } catch(error) {
+      console.log(error);
+      console.log("An error occurend when setting the ERC20 currency on the Auction House");
+    }
     
-    // try {
-    //   await econAuctionHouse.setDaoTreasury(daoTreasuryAddress);
-    // } catch(error) {
-    //   console.log(error);
-    //   console.log("An error occurend when setting the ERC20 currency on the Auction House");
-    // }
+    try {
+      await econAuctionHouse.setDaoTreasury(daoTreasuryAddress);
+    } catch(error) {
+      console.log(error);
+      console.log("An error occurend when setting the ERC20 currency on the Auction House");
+    }
 
-    // setTimeout(async () => {
-    //   try {
-    //     await hre.run("verify:verify", {
-    //       address: econAuctionHouse.address,
-    //       constructorArguments: [],
-    //     });
+    try {
+      await hre.run("verify:verify", {
+        address: econAuctionHouse.address,
+        constructorArguments: [],
+      });
 
-    //   } catch(error) {
-    //     console.log(`\n Contract hasn't been verified, you can verify it by typing : hh verify --network rinkeby ${econAuctionHouse.address}`);
-    //   }
-    // }, 120000);
+    } catch(error) {
+      console.log(`\n Contract hasn't been verified, you can verify it by typing : hh verify --network rinkeby ${econAuctionHouse.address}`);
+    }
   }
 };
 

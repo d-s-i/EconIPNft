@@ -33,7 +33,7 @@ export default {
   },
   networks: {
     rinkeby: {
-      url: process.env.RINKEBY_URL,
+      url: process.env.ALCHEMY_RINKEBY_URL,
       accounts: {
         mnemonic: process.env.MNEMONIC
       },
@@ -45,6 +45,12 @@ export default {
         mnemonic: process.env.MNEMONIC
       },
       saveDeployements: true
+    },
+    goerli: {
+      url: process.env.GOERLI_URL,
+      accounts: {
+        mnemonic: process.env.MNEMONIC
+      }
     }
     // hardhat: {
     //   forking: {
@@ -59,5 +65,5 @@ export default {
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY
-  },
+  }
 };

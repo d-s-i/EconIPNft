@@ -109,7 +109,7 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata, Ownable {
      * by default, can be overriden in child contracts.
      */
     function _baseURI() internal view virtual returns (string memory) {
-        return "lol";
+        return "https://ipfs.io/ipfs/QmVin8wnv4ytN5u8bf4aexSrsXr1AqTikx1MXNrKqYVYkF/";
     }
 
     /**

@@ -1,4 +1,5 @@
 import { ethers } from "hardhat";
+import { parseUnits } from "ethers/lib/utils";
 
 export const mintNFT = async function (econNFTAddress: string) {
 
@@ -10,7 +11,8 @@ export const mintNFT = async function (econNFTAddress: string) {
     const econNFT = await new ethers.Contract(econNFTAddress, EconNFTFactory.interface, signer);
 
     for(let i = 0; i < 20; i++) {
-        await econNFT.mint();
+        const mint_tx = await econNFT.mint({ maxPriorityFeePerGas: parseUnits("3", "9"), maxFeePerGas: parseUnits("3", "9") });
+        await mint_tx.wait(1);
         console.log(`Minted ${i + 1} nft so far...`);
     }
 

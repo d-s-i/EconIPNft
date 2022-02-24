@@ -1,4 +1,5 @@
 import { Contract } from "ethers";
+import { parseUnits } from "ethers/lib/utils";
 import { ethers } from "hardhat";
 
 export const initializeERC721NFT = async function (
@@ -6,9 +7,9 @@ export const initializeERC721NFT = async function (
     minterAddress: string
 ) {
 
-    console.log("Initializing the auction house...");
-    
-    const set_tx = await econNFT.setMinter(minterAddress);
+    console.log("Initializing the EconNFT...");
+
+    const set_tx = await econNFT.setMinter(minterAddress, { maxPriorityFeePerGas: parseUnits("3", "9"), maxFeePerGas: parseUnits("3", "9") });
 
     await set_tx.wait(1);
 

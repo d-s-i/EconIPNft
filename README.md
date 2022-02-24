@@ -1,15 +1,24 @@
-# Basic Sample Hardhat Project
+# How To Deploy
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts.
+The `deployEverything.ts` file will deploy the NFT, the Accounting contract and the AuctionHouse and initialize them.
+The contracts will not really need specific arguments for deployments. But to create an auction, args can be changed in `/test/constants.test"`, they are the same I used for tests.
 
-Try running some of the following tasks:
+To run the `deployEverything` file type  `hh run scripts/deploy/deployEverything.ts --network rinkeby` to deploy on rinkeby.
+Once deployed, you will still need to allow bidding by running `hh run scripts/setBiddingAllowed.ts --network rinkeby`.
+Once done, you should be able to bid.
 
-```shell
-npx hardhat accounts
-npx hardhat compile
-npx hardhat clean
-npx hardhat test
-npx hardhat node
-node scripts/sample-script.js
-npx hardhat help
-```
+In the .env file, here are the declared variables : 
+
+INFURA_RINKEBY_URL
+ALCHEMY_RINKEBY_URL
+GOERLI_URL
+POLYGON_TEST_URL
+MNEMONIC
+ETH_MAINNET_URL
+ETHERSCAN_API_KEY
+
+I think only the ALCHEMY_RINKEBY_URL is used but if an env variable isn't working, check if it's not one of those.
+
+NFT contract : `contracts/EconNFTERC721.sol`
+Auction House: `contracts/EconAuctionHouse.sol`
+Accounting: `contracts/Accounting.sol`
